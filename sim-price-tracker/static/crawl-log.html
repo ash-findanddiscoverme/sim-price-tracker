@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crawl Log | Virgin Media O2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --vmo2-red: #ED1C24; --vmo2-blue: #0050FF; }
+        .vmo2-gradient { background: linear-gradient(135deg, #ED1C24 0%, #0050FF 100%); }
+        .log-entry { font-family: monospace; font-size: 13px; padding: 4px 8px; }
+        .log-info { color: #374151; }
+        .log-success { color: #059669; }
+        .log-error { color: #DC2626; }
+        .log-warning { color: #D97706; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <header class="vmo2-gradient text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <img src="https://storyblok.cdn.vmo2digital.co.uk/f/253875/86x40/bcf3b1fc6e/logo.svg" alt="Virgin Media O2" height="40" style="height:40px;filter:brightness(10)"/>
+                    <span style="color:white;font-size:1.125rem;opacity:0.9">| Crawl Log</span>
+                </div>
+                <nav class="flex space-x-2">
+                    <a href="index.html" style="color:white;padding:8px 16px;border-radius:8px;font-weight:600;text-decoration:none">Plans</a>
+                    <a href="crawl-log.html" style="color:white;padding:8px 16px;background:rgba(255,255,255,0.2);border-radius:8px;font-weight:600;text-decoration:none">Crawl Log</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-800">Scrape Progress</h2>
+                <div class="flex items-center space-x-4">
+                    <span id="status" class="text-sm text-gray-500">Connecting...</span>
+                    <button onclick="triggerScrape()" style="background-color:#ED1C24" class="text-white px-4 py-2 rounded-md">Start Scrape</button>
+                </div>
+            </div>
+            <div id="providerStatus" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md">
+            <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-800">Live Log</h2>
+                <button onclick="clearLog()" class="text-sm text-gray-500 hover:text-gray-700">Clear</button>
+            </div>
+            <div id="logContainer" class="h-96 overflow-y-auto bg-gray-900 rounded-b-lg">
+                <div id="logOutput" class="p-2"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-12">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="text-sm text-gray-400">&copy; 2026 Virgin Media O2. SIM Price Tracker</div>
+        </div>
+    </footer>
+
+    <script>
+    const API_BASE = '';
+    let ws = null;
+    let providers = {};
+
+    document.addEventListener('DOMContentLoaded', connectWebSocket);
+
+    function connectWebSocket() {
+        try {
+            ws = new WebSocket('ws://' + location.host + '/api/scrape/logs');
+            
+            ws.onopen = () => {
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').style.color = '#059669';
+                addLog('Connected to server', 'info');
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+            
+            ws.onclose = () => {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').style.color = '#DC2626';
+                addLog('Disconnected. Reconnecting...', 'warning');
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            ws.onerror = (error) => {
+                addLog('WebSocket error', 'error');
+            };
+        } catch (e) {
+            addLog('Failed to connect', 'error');
+            setTimeout(connectWebSocket, 5000);
+        }
+    }
+
+    function handleMessage(data) {
+        if (data.type === 'log') {
+            addLog(data.message, data.level || 'info');
+        } else if (data.type === 'progress') {
+            updateProviderStatus(data);
+            if (data.status === 'completed') {
+                addLog(`Scrape complete: ${data.plans_found} plans found`, 'success');
+            } else {
+                addLog(`Progress: ${data.completed}/${data.total} providers (${data.plans_found} plans)`, 'info');
+            }
+        } else if (data.type === 'provider_start') {
+            providers[data.provider] = 'running';
+            renderProviderStatus();
+            addLog(`Started scraping: ${data.provider}`, 'info');
+        } else if (data.type === 'provider_complete') {
+            providers[data.provider] = data.error ? 'error' : 'done';
+            renderProviderStatus();
+            if (data.error) {
+                addLog(`Error scraping ${data.provider}: ${data.error}`, 'error');
+            } else {
+                addLog(`Completed: ${data.provider} (${data.plans_found || 0} plans)`, 'success');
+            }
+        }
+    }
+
+    function addLog(message, level) {
+        const output = document.getElementById('logOutput');
+        const time = new Date().toLocaleTimeString();
+        const div = document.createElement('div');
+        div.className = `log-entry log-${level}`;
+        div.textContent = `[${time}] ${message}`;
+        output.appendChild(div);
+        output.parentElement.scrollTop = output.parentElement.scrollHeight;
+    }
+
+    function clearLog() {
+        document.getElementById('logOutput').innerHTML = '';
+    }
+
+    function updateProviderStatus(data) {
+        if (data.provider_list) {
+            providers = {};
+            data.provider_list.forEach(p => providers[p] = 'pending');
+            renderProviderStatus();
+        }
+    }
+
+    function renderProviderStatus() {
+        const container = document.getElementById('providerStatus');
+        container.innerHTML = Object.entries(providers).map(([name, status]) => {
+            let bg = '#f3f4f6';
+            let color = '#64748b';
+            if (status === 'running') { bg = '#dbeafe'; color = '#0050FF'; }
+            else if (status === 'done') { bg = '#d1fae5'; color = '#059669'; }
+            else if (status === 'error') { bg = '#fee2e2'; color = '#dc2626'; }
+            return `<div style="background:${bg};padding:12px;border-radius:8px"><span style="font-weight:600;color:${color}">${name}</span><p style="font-size:12px;color:gray;text-transform:capitalize">${status}</p></div>`;
+        }).join('');
+    }
+
+    async function triggerScrape() {
+        try {
+            providers = {};
+            document.getElementById('providerStatus').innerHTML = '';
+            addLog('Starting new scrape...', 'info');
+            const res = await fetch(`${API_BASE}/api/scrape/trigger`, {method: 'POST'});
+            if (res.ok) {
+                addLog('Scrape started successfully', 'success');
+            } else {
+                addLog('Failed to start scrape', 'error');
+            }
+        } catch (e) {
+            addLog('Error: ' + e.message, 'error');
+        }
+    }
+    </script>
+</body>
+</html>

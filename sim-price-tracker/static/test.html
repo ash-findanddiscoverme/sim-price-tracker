@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><title>Diagnostic</title></head>
+<body style="font-family:sans-serif;padding:20px">
+<h1>SIM Tracker Diagnostic</h1>
+<div id="out" style="background:yellow;padding:10px;font-size:18px;font-weight:bold">Loading...</div>
+<table id="tbl" border="1" style="border-collapse:collapse;margin-top:20px;width:100%">
+<tr style="background:#333;color:white"><th style="padding:8px">Provider</th><th style="padding:8px">Name</th><th style="padding:8px">Data</th><th style="padding:8px">Price</th></tr>
+</table>
+<script>
+(async function() {
+    var o = document.getElementById('out');
+    var t = document.getElementById('tbl');
+    try {
+        o.textContent = 'Fetching...';
+        var r = await fetch('http://localhost:8000/api/plans');
+        o.textContent = 'Status: ' + r.status;
+        if (r.ok) {
+            var d = await r.json();
+            o.textContent = 'Found ' + d.length + ' plans';
+            d.forEach(function(p) {
+                var tr = document.createElement('tr');
+                var pn = p.provider_name || p.provider || '?';
+                var dg = (p.data_gb === -1) ? 'Unlimited' : (p.data_gb + ' GB');
+                var pr = (typeof p.price === 'number') ? p.price.toFixed(2) : '?';
+                tr.innerHTML = '<td style="padding:8px">' + pn + '</td><td style="padding:8px">' + p.name + '</td><td style="padding:8px">' + dg + '</td><td style="padding:8px">' + pr + '</td>';
+                t.appendChild(tr);
+            });
+        } else {
+            o.textContent = 'Error: ' + r.status;
+        }
+    } catch (e) {
+        o.textContent = 'Failed: ' + e.message;
+    }
+})();
+</script>
+</body>
+</html>

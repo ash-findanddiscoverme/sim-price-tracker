@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIM Price Tracker | Virgin Media O2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        :root { --vmo2-red: #ED1C24; --vmo2-blue: #0050FF; }
+        .vmo2-gradient { background: linear-gradient(135deg, #ED1C24 0%, #0050FF 100%); }
+        .btn-primary { background-color: var(--vmo2-red); }
+        .btn-primary:hover { background-color: #c41920; }
+        .btn-secondary { background-color: var(--vmo2-blue); }
+        .btn-secondary:hover { background-color: #001280; }
+        .table-header { background-color: var(--vmo2-blue); }
+        .progress-fill { background: linear-gradient(90deg, #ED1C24 0%, #0050FF 100%); }
+        .card-accent-red { border-left: 4px solid var(--vmo2-red); }
+        .card-accent-blue { border-left: 4px solid var(--vmo2-blue); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <header class="vmo2-gradient text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <img src="https://storyblok.cdn.vmo2digital.co.uk/f/253875/86x40/bcf3b1fc6e/logo.svg" alt="Virgin Media O2" height="40" style="height:40px;filter:brightness(10)"/>
+                    <span style="color:white;font-size:1.125rem;opacity:0.9">| SIM Price Tracker</span>
+                </div>
+                <nav class="flex space-x-2">
+                    <a href="index.html" style="color:white;padding:8px 16px;background:rgba(255,255,255,0.2);border-radius:8px;font-weight:600;text-decoration:none">Plans</a>
+                    <a href="crawl-log.html" style="color:white;padding:8px 16px;border-radius:8px;font-weight:600;text-decoration:none">Crawl Log</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+    <div id="progressSection" class="bg-white border-b shadow-sm" style="display: none;">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between mb-2">
+                <span id="progressText" class="text-sm font-medium text-gray-700">Scraping...</span>
+                <span id="progressDate" class="text-sm text-gray-500"></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div id="progressBar" class="progress-fill h-2 rounded-full transition-all" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="lastScrapedBanner" class="bg-blue-50 border-b border-blue-100" style="display: none;">
+        <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+            <span class="text-sm text-blue-800"><strong>Last scraped:</strong> <span id="lastScrapedDate">-</span></span>
+            <button onclick="triggerScrape()" class="btn-primary text-white px-4 py-1 rounded text-sm">Run New Scrape</button>
+        </div>
+    </div>
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <div class="bg-white rounded-lg shadow-md p-4 mb-6 card-accent-red">
+            <div class="flex flex-wrap gap-4 items-end">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Scrape Date</label>
+                    <select id="scrapeDate" onchange="loadPlansByDate(this.value)" class="border border-gray-300 rounded-md px-3 py-2">
+                        <option value="">Latest</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                    <select id="filterProvider" onchange="applyFilters()" class="border border-gray-300 rounded-md px-3 py-2">
+                        <option value="">All Providers</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Data (GB)</label>
+                    <select id="filterData" onchange="applyFilters()" class="border border-gray-300 rounded-md px-3 py-2">
+                        <option value="">All Data</option>
+                        <option value="0-5">0-5 GB</option>
+                        <option value="5-15">5-15 GB</option>
+                        <option value="15-50">15-50 GB</option>
+                        <option value="50-100">50-100 GB</option>
+                        <option value="100+">100+ GB</option>
+                        <option value="unlimited">Unlimited</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Price</label>
+                    <select id="filterPrice" onchange="applyFilters()" class="border border-gray-300 rounded-md px-3 py-2">
+                        <option value="">Any Price</option>
+                        <option value="10">Under 10</option>
+                        <option value="15">Under 15</option>
+                        <option value="20">Under 20</option>
+                        <option value="30">Under 30</option>
+                    </select>
+                </div>
+                <button onclick="clearFilters()" class="btn-secondary text-white px-4 py-2 rounded-md">Clear Filters</button>
+            </div>
+        </div>
+        <div id="chartContainer" class="bg-white rounded-lg shadow-md p-4 mb-6 card-accent-blue" style="display: none;">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Price History</h2>
+            <div id="priceChart"></div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-800">SIM-Only Plans</h2>
+                <span id="planCount" class="text-sm text-gray-500">0 plans</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="table-header">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-white uppercase cursor-pointer" onclick="sortTable('provider')">Provider</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-white uppercase cursor-pointer" onclick="sortTable('name')">Plan Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-white uppercase cursor-pointer" onclick="sortTable('data')">Data</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-white uppercase cursor-pointer" onclick="sortTable('price')">Price</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-white uppercase cursor-pointer" onclick="sortTable('contract')">Contract</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-white uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plansTableBody" class="bg-white divide-y divide-gray-200">
+                        <tr><td colspan="6" class="px-6 py-12 text-center text-gray-500">Loading plans...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    <footer class="bg-gray-800 text-white mt-12">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex justify-between items-center">
+                <div class="text-sm text-gray-400">&copy; 2026 Virgin Media O2. SIM Price Tracker</div>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-white">Help</a>
+                    <a href="#" class="text-gray-400 hover:text-white">Privacy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <div id="planModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="vmo2-gradient text-white px-6 py-4 rounded-t-lg">
+                <div class="flex justify-between items-center">
+                    <h3 id="modalTitle" class="text-xl font-semibold">Plan Details</h3>
+                    <button onclick="closeModal()" class="text-white hover:text-gray-200 text-2xl">&times;</button>
+                </div>
+            </div>
+            <div class="p-6">
+                <div id="modalContent"></div>
+                <div id="modalChart" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const API_BASE = '';
+    let allPlans = [];
+    let filteredPlans = [];
+    let scrapeRuns = [];
+    let currentSort = { field: 'price', direction: 'asc' };
+    let chart = null;
+    let modalChart = null;
+    let ws = null;
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    async function init() {
+        await loadScrapeRuns();
+        await loadPlans();
+        connectWebSocket();
+    }
+
+    async function loadScrapeRuns() {
+        try {
+            const res = await fetch(`${API_BASE}/api/scrape-runs`);
+            if (res.ok) {
+                scrapeRuns = await res.json();
+                populateDateDropdown();
+                updateLastScrapedBanner();
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function populateDateDropdown() {
+        const sel = document.getElementById('scrapeDate');
+        sel.innerHTML = '<option value="">Latest</option>';
+        scrapeRuns.forEach(run => {
+            const d = new Date(run.started_at);
+            const opt = document.createElement('option');
+            opt.value = run.started_at;
+            opt.textContent = d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+            sel.appendChild(opt);
+        });
+    }
+
+    function updateLastScrapedBanner() {
+        const banner = document.getElementById('lastScrapedBanner');
+        const dateSpan = document.getElementById('lastScrapedDate');
+        if (scrapeRuns.length > 0) {
+            const last = scrapeRuns[0];
+            const d = new Date(last.started_at);
+            dateSpan.textContent = d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) + ` (${last.total_plans_found} plans)`;
+            banner.style.display = 'block';
+        }
+    }
+
+    async function loadPlans(scrapeDate = null) {
+        try {
+            let url = `${API_BASE}/api/plans`;
+            if (scrapeDate) url += `?scrape_date=${encodeURIComponent(scrapeDate)}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                allPlans = await res.json();
+                populateProviderFilter();
+                applyFilters();
+            }
+        } catch (e) {
+            document.getElementById('plansTableBody').innerHTML = '<tr><td colspan="6" style="padding:3rem;text-align:center;color:red">Error loading.</td></tr>';
+        }
+    }
+
+    function loadPlansByDate(date) { loadPlans(date || null); }
+
+    function populateProviderFilter() {
+        const provs = [...new Set(allPlans.map(p => p.provider_name))].sort();
+        const sel = document.getElementById('filterProvider');
+        sel.innerHTML = '<option value="">All Providers</option>';
+        provs.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p; opt.textContent = p;
+            sel.appendChild(opt);
+        });
+    }
+
+    function applyFilters() {
+        const prov = document.getElementById('filterProvider').value;
+        const dataRange = document.getElementById('filterData').value;
+        const maxPrice = document.getElementById('filterPrice').value;
+
+        filteredPlans = allPlans.filter(plan => {
+            if (prov && plan.provider_name !== prov) return false;
+            if (maxPrice && plan.price > parseFloat(maxPrice)) return false;
+            if (dataRange) {
+                const dg = plan.data_gb;
+                if (dataRange === 'unlimited') { if (dg !== -1 && dg < 999) return false; }
+                else if (dataRange === '100+') { if (dg < 100 && dg !== -1) return false; }
+                else {
+                    const [min, max] = dataRange.split('-').map(Number);
+                    if (dg === -1 || dg < min || dg > max) return false;
+                }
+            }
+            return true;
+        });
+        sortPlans(); renderTable(); updateChart();
+    }
+
+    function clearFilters() {
+        document.getElementById('filterProvider').value = '';
+        document.getElementById('filterData').value = '';
+        document.getElementById('filterPrice').value = '';
+        applyFilters();
+    }
+
+    function sortTable(field) {
+        if (currentSort.field === field) currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        else { currentSort.field = field; currentSort.direction = 'asc'; }
+        sortPlans(); renderTable();
+    }
+
+    function sortPlans() {
+        filteredPlans.sort((a, b) => {
+            let vA = a[currentSort.field === 'provider' ? 'provider_name' : currentSort.field];
+            let vB = b[currentSort.field === 'provider' ? 'provider_name' : currentSort.field];
+            if (currentSort.field === 'data') { vA = a.data_gb === -1 ? 9999 : a.data_gb; vB = b.data_gb === -1 ? 9999 : b.data_gb; }
+            if (typeof vA === 'string') return currentSort.direction === 'asc' ? vA.localeCompare(vB) : vB.localeCompare(vA);
+            return currentSort.direction === 'asc' ? vA - vB : vB - vA;
+        });
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('plansTableBody');
+        document.getElementById('planCount').textContent = `${filteredPlans.length} plans`;
+        if (filteredPlans.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="padding:3rem;text-align:center;color:gray">No plans</td></tr>'; return; }
+        tbody.innerHTML = filteredPlans.map((p, i) => `<tr style="background:${i % 2 === 0 ? 'white' : '#f9fafb'};cursor:pointer" onclick="showPlanDetail(${p.id})"><td style="padding:1rem"><span style="background:#dbeafe;padding:2px 8px;border-radius:999px;font-size:12px">${p.provider_name}</span></td><td style="padding:1rem">${p.name}</td><td style="padding:1rem">${p.data_gb === -1 ? '<span style="color:green">Unlimited</span>' : p.data_gb + ' GB'}</td><td style="padding:1rem;font-weight:600">&pound;${p.price.toFixed(2)}/mo</td><td style="padding:1rem;color:gray">${p.contract_length} mo</td><td style="padding:1rem"><button onclick="event.stopPropagation();showPlanDetail(${p.id})" style="color:#0050FF">View</button></td></tr>`).join('');
+    }
+
+    async function updateChart() {
+        const cont = document.getElementById('chartContainer');
+        if (filteredPlans.length === 0) { cont.style.display = 'none'; return; }
+        try {
+            const prov = document.getElementById('filterProvider').value;
+            let url = `${API_BASE}/api/price-history`;
+            if (prov) url += `?provider=${encodeURIComponent(prov)}`;
+            const res = await fetch(url);
+            if (!res.ok) { cont.style.display = 'none'; return; }
+            const data = await res.json();
+            if (!data || data.length === 0) { cont.style.display = 'none'; return; }
+            cont.style.display = 'block';
+            renderChart(data);
+        } catch (e) { cont.style.display = 'none'; }
+    }
+
+    function renderChart(data) {
+        if (chart) chart.destroy();
+        const opts = {
+            series: [{name: 'Avg Price', data: data.map(d => ({x: new Date(d.date), y: d.avg_price}))}],
+            chart: {type: 'line', height: 300, toolbar: {show: false}},
+            colors: ['#ED1C24'],
+            stroke: {curve: 'smooth', width: 3},
+            xaxis: {type: 'datetime'},
+            yaxis: {labels: {formatter: (v) => '\u00A3' + v.toFixed(2)}}
+        };
+        chart = new ApexCharts(document.getElementById('priceChart'), opts);
+        chart.render();
+    }
+
+    async function showPlanDetail(planId) {
+        const plan = allPlans.find(p => p.id === planId);
+        if (!plan) return;
+        document.getElementById('modalTitle').textContent = plan.name;
+        document.getElementById('modalContent').innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem"><div style="background:#f9fafb;padding:12px;border-radius:8px"><span style="font-size:12px;color:gray">Provider</span><p style="font-weight:600">${plan.provider_name}</p></div><div style="background:#f9fafb;padding:12px;border-radius:8px"><span style="font-size:12px;color:gray">Data</span><p style="font-weight:600">${plan.data_gb === -1 ? 'Unlimited' : plan.data_gb + ' GB'}</p></div><div style="background:#f9fafb;padding:12px;border-radius:8px"><span style="font-size:12px;color:gray">Price</span><p style="font-weight:600;font-size:18px">&pound;${plan.price.toFixed(2)}/month</p></div><div style="background:#f9fafb;padding:12px;border-radius:8px"><span style="font-size:12px;color:gray">Contract</span><p style="font-weight:600">${plan.contract_length} months</p></div></div>`;
+        try {
+            const res = await fetch(`${API_BASE}/api/price-history?plan_id=${planId}`);
+            if (res.ok) renderModalChart(await res.json());
+        } catch (e) {}
+        document.getElementById('planModal').style.display = 'flex';
+    }
+
+    function renderModalChart(data) {
+        if (modalChart) modalChart.destroy();
+        if (!data || data.length === 0) { document.getElementById('modalChart').innerHTML = '<p style="color:gray;text-align:center">No price history</p>'; return; }
+        const opts = {
+            series: [{name: 'Price', data: data.map(d => ({x: new Date(d.date), y: d.price}))}],
+            chart: {type: 'area', height: 200, toolbar: {show: false}},
+            colors: ['#0050FF'],
+            fill: {type: 'gradient', gradient: {shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.2}},
+            stroke: {curve: 'smooth', width: 2},
+            xaxis: {type: 'datetime'},
+            yaxis: {labels: {formatter: (v) => '\u00A3' + v.toFixed(2)}}
+        };
+        modalChart = new ApexCharts(document.getElementById('modalChart'), opts);
+        modalChart.render();
+    }
+
+    function closeModal() {
+        document.getElementById('planModal').style.display = 'none';
+    }
+
+    async function triggerScrape() {
+        try {
+            const res = await fetch(`${API_BASE}/api/scrape/trigger`, {method: 'POST'});
+            if (res.ok) showProgress();
+        } catch (e) { alert('Failed to start scrape'); }
+    }
+
+    function showProgress() {
+        const sec = document.getElementById('progressSection');
+        sec.style.display = 'block';
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressText').textContent = 'Starting scrape...';
+        document.getElementById('progressDate').textContent = new Date().toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+    }
+
+    function updateProgress(data) {
+        const sec = document.getElementById('progressSection');
+        sec.style.display = 'block';
+        const pct = data.total > 0 ? (data.completed / data.total) * 100 : 0;
+        document.getElementById('progressBar').style.width = `${pct}%`;
+        document.getElementById('progressText').textContent = `Scraping: ${data.completed}/${data.total} (${data.plans_found} plans)`;
+        if (data.status === 'completed') {
+            document.getElementById('progressText').textContent = `Complete: ${data.plans_found} plans`;
+            setTimeout(() => { sec.style.display = 'none'; loadScrapeRuns(); loadPlans(); }, 2000);
+        }
+    }
+
+    function connectWebSocket() {
+        try {
+            ws = new WebSocket('ws://' + location.host + '/api/scrape/logs');
+            ws.onmessage = (ev) => {
+                const data = JSON.parse(ev.data);
+                if (data.type === 'progress') updateProgress(data);
+            };
+            ws.onclose = () => setTimeout(connectWebSocket, 5000);
+        } catch (e) {}
+    }
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+    document.getElementById('planModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal(); });
+    </script>
+</body>
+</html>
