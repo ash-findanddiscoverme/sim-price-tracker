@@ -31,3 +31,8 @@ node_modules/
 # Logs
 *.log
 .cursor/
+
+# Temp/generated
+static/gen.py
+static/gen1.py
+test_scraper.py

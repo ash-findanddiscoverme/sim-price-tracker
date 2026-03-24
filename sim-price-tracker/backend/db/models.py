@@ -1,62 +1,113 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.orm import relationship
+"""Database models for SIM price tracker."""
+
 from datetime import datetime
-from .database import Base
+from typing import Optional, List
+import json
+
+from sqlalchemy import (
+    Column, Integer, String, Float, Boolean, DateTime, 
+    ForeignKey, Text, Index
+)
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
 
 
 class Provider(Base):
-    """Network provider or affiliate site"""
+    """Provider / network / affiliate site."""
     __tablename__ = "providers"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    slug = Column(String(50), unique=True, nullable=False)
-    provider_type = Column(String(20), nullable=False)  # network, mvno, affiliate
-    logo_url = Column(String(500), nullable=True)
-    website_url = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    plans = relationship("Plan", back_populates="provider", lazy="selectin")
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    provider_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    logo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    website_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    plans: Mapped[List["Plan"]] = relationship("Plan", back_populates="provider")
 
 
 class Plan(Base):
-    """A SIM-only plan offering"""
+    """SIM-only plan."""
     __tablename__ = "plans"
-
-    id = Column(Integer, primary_key=True, index=True)
-    provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
-    name = Column(String(200), nullable=False)
-    url = Column(String(1000), nullable=False)
-    data_gb = Column(Integer, nullable=True)  # None means unlimited
-    data_unlimited = Column(Boolean, default=False)
-    contract_months = Column(Integer, default=1)  # 1 = rolling monthly
-    is_5g = Column(Boolean, default=False)
-    minutes = Column(String(50), nullable=True)  # "unlimited" or number
-    texts = Column(String(50), nullable=True)  # "unlimited" or number
-    extras = Column(Text, nullable=True)  # JSON string of extras
-    external_id = Column(String(200), nullable=True)  # For deduplication
-    first_seen = Column(DateTime, default=datetime.utcnow)
-    last_seen = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    is_active = Column(Boolean, default=True)
-
-    provider = relationship("Provider", back_populates="plans")
-    price_snapshots = relationship("PriceSnapshot", back_populates="plan", lazy="selectin", order_by="PriceSnapshot.scraped_at.desc()")
-
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider_id: Mapped[int] = mapped_column(ForeignKey("providers.id"), nullable=False)
+    external_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    # Core fields (priority)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    data_gb: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    data_unlimited: Mapped[bool] = mapped_column(Boolean, default=False)
+    contract_months: Mapped[int] = mapped_column(Integer, default=1)
+    
+    # Attribution
+    network_provider: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    
+    # Confidence tracking
+    confidence_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    confidence_reasons: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extraction_strategy: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    needs_verification: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Metadata
+    first_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    provider: Mapped["Provider"] = relationship("Provider", back_populates="plans")
+    price_snapshots: Mapped[List["PriceSnapshot"]] = relationship("PriceSnapshot", back_populates="plan")
+    
+    __table_args__ = (
+        Index("ix_plans_provider_external", "provider_id", "external_id", unique=True),
+    )
+    
     @property
-    def current_price(self):
-        """Get the most recent price"""
+    def current_price(self) -> Optional[float]:
+        """Get most recent price."""
         if self.price_snapshots:
-            return self.price_snapshots[0].price
+            return max(self.price_snapshots, key=lambda s: s.scraped_at).price
         return None
+    
+    @property
+    def confidence_reasons_list(self) -> List[str]:
+        """Get confidence reasons as list."""
+        if self.confidence_reasons:
+            try:
+                return json.loads(self.confidence_reasons)
+            except json.JSONDecodeError:
+                return []
+        return []
 
 
 class PriceSnapshot(Base):
-    """Historical price record for a plan"""
+    """Historical price record."""
     __tablename__ = "price_snapshots"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    plan: Mapped["Plan"] = relationship("Plan", back_populates="price_snapshots")
+    
+    __table_args__ = (
+        Index("ix_snapshots_plan_date", "plan_id", "scraped_at"),
+    )
 
-    id = Column(Integer, primary_key=True, index=True)
-    plan_id = Column(Integer, ForeignKey("plans.id"), nullable=False, index=True)
-    price = Column(Float, nullable=False)  # Monthly price in GBP
-    scraped_at = Column(DateTime, default=datetime.utcnow, index=True)
 
-    plan = relationship("Plan", back_populates="price_snapshots")
+class ScrapeRun(Base):
+    """Record of a scrape execution."""
+    __tablename__ = "scrape_runs"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    total_providers: Mapped[int] = mapped_column(Integer, default=0)
+    successful_providers: Mapped[int] = mapped_column(Integer, default=0)
+    total_plans_found: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

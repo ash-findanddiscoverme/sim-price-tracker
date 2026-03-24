@@ -3,571 +3,538 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIM Price Tracker | Virgin Media O2</title>
+    <title>SIM Price Tracker - Analytics</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --vmo2-red: #ED1C24; --vmo2-blue: #0050FF; }
-        .vmo2-gradient { background: linear-gradient(135deg, #ED1C24 0%, #0050FF 100%); }
-        .btn-primary { background-color: var(--vmo2-red); }
-        .btn-primary:hover { background-color: #c41920; }
-        .btn-secondary { background-color: var(--vmo2-blue); }
-        .btn-secondary:hover { background-color: #001280; }
-        .table-header { background-color: var(--vmo2-blue); }
-        .progress-fill { background: linear-gradient(90deg, #ED1C24 0%, #0050FF 100%); }
-        .card-accent-red { border-left: 4px solid var(--vmo2-red); }
-        .card-accent-blue { border-left: 4px solid var(--vmo2-blue); }
-        .plan-row { transition: background-color 0.15s ease; }
-        .plan-row:hover { background-color: #eef2ff !important; }
-        .plan-row td { padding: 0.75rem 1rem; }
-        .detail-row { overflow: hidden; transition: max-height 0.35s ease, opacity 0.25s ease; max-height: 0; opacity: 0; }
-        .detail-row.open { max-height: 500px; opacity: 1; }
-        .detail-row td { padding: 0; }
-        .detail-inner { padding: 1rem 1.5rem 1.5rem; background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
-        .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap; }
-        .badge-provider { background: #dbeafe; color: #1e40af; }
-        .badge-mno { background: #dbeafe; color: #1d4ed8; }
-        .badge-mvno { background: #dcfce7; color: #15803d; }
-        .badge-affiliate { background: #f3e8ff; color: #7e22ce; }
-        .badge-5g-yes { background: #dcfce7; color: #166534; }
-        .badge-5g-no { background: #fee2e2; color: #991b1b; }
-        .badge-4g { background: #e0f2fe; color: #0369a1; }
-        .sort-arrow { margin-left: 4px; opacity: 0.5; }
-        .sort-arrow.active { opacity: 1; }
-        th.sortable { cursor: pointer; user-select: none; }
-        th.sortable:hover { background-color: rgba(255,255,255,0.1); }
+        .gradient-header { background: linear-gradient(135deg, #002F6C 0%, #E6007A 100%); color: white; padding: 16px 24px; }
+        .o2-badge { background: #002F6C; }
+        .selected-row { background-color: #EFF6FF !important; border-left: 4px solid #002F6C; }
+        .price-up { color: #EF4444; }
+        .price-down { color: #10B981; }
+        #plansTable tr:hover { background: #f9fafb; }
+        #plansTable tr.selected { background: #EFF6FF; border-left: 4px solid #002F6C; }
+        #plansTable tr { cursor: pointer; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f9fafb; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f3f4f6; font-weight: 600; font-size: 13px; color: #4b5563; }
+        select, input { padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
+        button { cursor: pointer; border: none; padding: 6px 12px; border-radius: 6px; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <header class="vmo2-gradient text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 py-3">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <img src="https://storyblok.cdn.vmo2digital.co.uk/f/253875/86x40/bcf3b1fc6e/logo.svg" alt="Virgin Media O2" height="40" style="height:40px;filter:brightness(10)"/>
-                    <span style="color:white;font-size:1.125rem;opacity:0.9">| SIM Price Tracker</span>
-                </div>
-                <nav class="flex space-x-2">
-                    <a href="index.html" style="color:white;padding:8px 16px;background:rgba(255,255,255,0.2);border-radius:8px;font-weight:600;text-decoration:none">Plans</a>
-                    <a href="crawl-log.html" style="color:white;padding:8px 16px;border-radius:8px;font-weight:600;text-decoration:none">Crawl Log</a>
-                </nav>
+    <header class="gradient-header text-white py-4 px-6 shadow-lg">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold">SIM Price Tracker</h1>
+                <p class="text-sm opacity-80">Analytics Dashboard</p>
+            </div>
+            <div class="flex gap-2 items-center">
+                <span id="planCount" class="text-sm"></span>
+                <button onclick="loadData()" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm">Refresh</button>
+                <button id="scrapeBtn" onclick="startScrape()" class="bg-pink-500 hover:bg-pink-600 px-3 py-1 rounded text-sm font-medium">Run Scrape</button>
             </div>
         </div>
     </header>
-    <div id="progressSection" class="bg-white border-b shadow-sm" style="display:none;">
-        <div class="max-w-7xl mx-auto px-4 py-3">
-            <div class="flex items-center justify-between mb-2">
-                <span id="progressText" class="text-sm font-medium text-gray-700">Scraping...</span>
-                <span id="progressDate" class="text-sm text-gray-500"></span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-                <div id="progressBar" class="progress-fill h-2 rounded-full transition-all" style="width:0%"></div>
-            </div>
-        </div>
-    </div>
-    <div id="lastScrapedBanner" class="bg-blue-50 border-b border-blue-100" style="display:none;">
-        <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
-            <span class="text-sm text-blue-800"><strong>Last scraped:</strong> <span id="lastScrapedDate">-</span></span>
-            <button onclick="triggerScrape()" class="btn-primary text-white px-4 py-1 rounded text-sm">Run New Scrape</button>
-        </div>
-    </div>
+
     <main class="max-w-7xl mx-auto px-4 py-6">
-        <div class="bg-white rounded-lg shadow-md p-4 mb-6 card-accent-red">
-            <div class="flex flex-wrap gap-4 items-end">
+        <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Scrape Date</label>
-                    <select id="scrapeDate" onchange="loadPlansByDate(this.value)" class="border border-gray-300 rounded-md px-3 py-2 text-sm">
-                        <option value="">Latest</option>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Network</label>
+                    <select id="filterNetwork" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
+                        <option value="">All Networks</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                    <select id="filterProvider" onchange="applyFilters()" class="border border-gray-300 rounded-md px-3 py-2 text-sm">
-                        <option value="">All Providers</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Data (GB)</label>
-                    <select id="filterData" onchange="applyFilters()" class="border border-gray-300 rounded-md px-3 py-2 text-sm">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                    <select id="filterData" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
                         <option value="">All Data</option>
-                        <option value="0-5">0-5 GB</option>
-                        <option value="5-15">5-15 GB</option>
-                        <option value="15-50">15-50 GB</option>
-                        <option value="50-100">50-100 GB</option>
-                        <option value="100+">100+ GB</option>
+                        <option value="1-5">1-5 GB</option>
+                        <option value="6-15">6-15 GB</option>
+                        <option value="16-50">16-50 GB</option>
+                        <option value="51-100">51-100 GB</option>
+                        <option value="101+">100+ GB</option>
                         <option value="unlimited">Unlimited</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Price</label>
-                    <select id="filterPrice" onchange="applyFilters()" class="border border-gray-300 rounded-md px-3 py-2 text-sm">
-                        <option value="">Any Price</option>
-                        <option value="10">Under 10</option>
-                        <option value="15">Under 15</option>
-                        <option value="20">Under 20</option>
-                        <option value="30">Under 30</option>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Contract</label>
+                    <select id="filterContract" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
+                        <option value="">All Lengths</option>
+                        <option value="1">1 Month</option>
+                        <option value="12">12 Months</option>
+                        <option value="24">24 Months</option>
                     </select>
                 </div>
-                <button onclick="clearFilters()" class="btn-secondary text-white px-4 py-2 rounded-md text-sm">Clear Filters</button>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Price</label>
+                    <input type="number" id="filterMaxPrice" placeholder="50" oninput="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Source</label>
+                    <select id="filterSource" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
+                        <option value="">All Sources</option>
+                    </select>
+                </div>
             </div>
         </div>
-        <div id="chartContainer" class="bg-white rounded-lg shadow-md p-4 mb-6 card-accent-blue" style="display:none;">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Price History</h2>
-            <div id="priceChart"></div>
-        </div>
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
-            <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-gray-800">SIM-Only Plans</h2>
-                <span id="planCount" class="text-sm text-gray-500">0 plans</span>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Price Distribution by Network</h3>
+                <canvas id="priceDistChart" height="200"></canvas>
             </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="table-header">
-                        <tr>
-                            <th class="sortable px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider" onclick="sortTable('provider_name')">Provider<span class="sort-arrow" id="sort-provider_name"></span></th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Type</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Source</th>
-                            <th class="sortable px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider" onclick="sortTable('price')">Monthly Cost<span class="sort-arrow" id="sort-price"></span></th>
-                            <th class="sortable px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider" onclick="sortTable('data')">Data<span class="sort-arrow" id="sort-data"></span></th>
-                            <th class="sortable px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider" onclick="sortTable('contract')">Contract<span class="sort-arrow" id="sort-contract"></span></th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Perks</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Network</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Link</th>
-                        </tr>
-                    </thead>
-                    <tbody id="plansTableBody" class="bg-white divide-y divide-gray-100">
-                        <tr><td colspan="9" class="px-6 py-12 text-center text-gray-500">Loading plans...</td></tr>
-                    </tbody>
-                </table>
+            <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Average Price by Data Amount</h3>
+                <canvas id="dataVsPriceChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-white rounded-lg shadow">
+                <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-800">SIM Plans</h3>
+                    <span id="filteredCount" class="text-sm text-gray-500"></span>
+                </div>
+                <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('network')">Network</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('name')">Plan</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('price')">Price</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('data')">Data</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Contract</th>
+                            </tr>
+                        </thead>
+                        <tbody id="plansTable" class="divide-y divide-gray-100">
+                            <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Loading plans...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-900 to-blue-700 text-white rounded-t-lg">
+                    <h3 class="text-lg font-semibold">O2 Comparison</h3>
+                    <p class="text-sm opacity-80">Select a plan to compare</p>
+                </div>
+                <div id="o2ComparePanel" class="p-4">
+                    <p class="text-gray-500 text-sm text-center py-8">Click on any plan to see the closest O2 equivalent</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="priceHistorySection" class="mt-6 bg-white rounded-lg shadow" style="display:none">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">Price History</h3>
+                <span id="selectedPlanName" class="text-sm text-gray-500"></span>
+            </div>
+            <div class="p-4">
+                <canvas id="priceHistoryChart" height="120"></canvas>
             </div>
         </div>
     </main>
-    <footer class="bg-gray-800 text-white mt-12">
-        <div class="max-w-7xl mx-auto px-4 py-6">
-            <div class="flex justify-between items-center">
-                <div class="text-sm text-gray-400">&copy; 2026 Virgin Media O2. SIM Price Tracker</div>
-                <div class="flex space-x-4">
-                    <a href="#" class="text-gray-400 hover:text-white">Help</a>
-                    <a href="#" class="text-gray-400 hover:text-white">Privacy</a>
-                </div>
-            </div>
-        </div>
-    </footer>
-<script>
-    var API_BASE = '';
-    var allPlans = [];
-    var filteredPlans = [];
-    var scrapeRuns = [];
-    var currentSort = { field: 'price', direction: 'asc' };
-    var chart = null;
-    var expandedRows = {};
-    var detailCharts = {};
-    var ws = null;
 
-    document.addEventListener('DOMContentLoaded', init);
+    <script>
+        var allPlans = [];
+        var filteredPlans = [];
+        var selectedPlan = null;
+        var o2Plans = [];
+        var priceDistChart = null;
+        var dataVsPriceChart = null;
+        var priceHistoryChart = null;
+        var sortColumn = 'price';
+        var sortAsc = true;
+        var scrapePolling = null;
+        var API_BASE = window.location.origin;
 
-    async function init() {
-        await loadScrapeRuns();
-        await loadPlans();
-        connectWebSocket();
-    }
+        document.addEventListener('DOMContentLoaded', loadData);
 
-    async function loadScrapeRuns() {
-        try {
-            var res = await fetch(API_BASE + '/api/scrape-runs');
-            if (res.ok) {
-                scrapeRuns = await res.json();
-                populateDateDropdown();
-                updateLastScrapedBanner();
-            }
-        } catch (e) { console.error('Failed to load scrape runs:', e); }
-    }
-
-    function populateDateDropdown() {
-        var sel = document.getElementById('scrapeDate');
-        sel.innerHTML = '<option value="">Latest</option>';
-        for (var i = 0; i < scrapeRuns.length; i++) {
-            var run = scrapeRuns[i];
-            var d = new Date(run.started_at);
-            var opt = document.createElement('option');
-            opt.value = run.started_at;
-            opt.textContent = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            sel.appendChild(opt);
-        }
-    }
-
-    function updateLastScrapedBanner() {
-        var banner = document.getElementById('lastScrapedBanner');
-        var dateSpan = document.getElementById('lastScrapedDate');
-        if (scrapeRuns.length > 0) {
-            var last = scrapeRuns[0];
-            var d = new Date(last.started_at);
-            dateSpan.textContent = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' (' + last.total_plans_found + ' plans)';
-            banner.style.display = 'block';
-        }
-    }
-
-    async function loadPlans(scrapeDate) {
-        try {
-            var url = API_BASE + '/api/plans';
-            if (scrapeDate) url += '?scrape_date=' + encodeURIComponent(scrapeDate);
-            var res = await fetch(url);
-            if (res.ok) {
-                allPlans = await res.json();
-                expandedRows = {};
-                var keys = Object.keys(detailCharts);
-                for (var i = 0; i < keys.length; i++) {
-                    if (detailCharts[keys[i]]) detailCharts[keys[i]].destroy();
-                }
-                detailCharts = {};
-                populateProviderFilter();
+        async function loadData() {
+            try {
+                document.getElementById('planCount').textContent = 'Loading...';
+                var response = await fetch(API_BASE + '/api/v1/plans');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                var data = await response.json();
+                allPlans = data.plans || data || [];
+                o2Plans = allPlans.filter(function(p) {
+                    var net = (p.network_provider || '').toLowerCase();
+                    var prov = (p.provider_name || '').toLowerCase();
+                    return net.indexOf('o2') >= 0 || prov.indexOf('o2') >= 0;
+                });
+                populateNetworkFilter();
+                populateSourceFilter();
                 applyFilters();
+                document.getElementById('planCount').textContent = allPlans.length + ' plans';
+                try { updateCharts(); } catch(ce) { console.warn('Charts unavailable:', ce.message); }
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('planCount').textContent = 'Error: ' + error.message;
+                document.getElementById('plansTable').innerHTML =
+                    '<tr><td colspan="5" style="padding:32px;text-align:center;color:#ef4444">Failed to load data: ' + error.message + '</td></tr>';
             }
-        } catch (e) {
-            document.getElementById('plansTableBody').innerHTML = '<tr><td colspan="9" style="padding:3rem;text-align:center;color:red">Error loading plans.</td></tr>';
         }
-    }
 
-    function loadPlansByDate(date) { loadPlans(date || undefined); }
-
-    function populateProviderFilter() {
-        var seen = {};
-        var provs = [];
-        for (var i = 0; i < allPlans.length; i++) {
-            var name = allPlans[i].provider_name;
-            if (!seen[name]) { seen[name] = true; provs.push(name); }
+        function populateNetworkFilter() {
+            var networks = [];
+            var seen = {};
+            allPlans.forEach(function(p) {
+                var n = p.network_provider || p.provider_name || 'Unknown';
+                if (!seen[n]) { seen[n] = true; networks.push(n); }
+            });
+            var sel = document.getElementById('filterNetwork');
+            sel.innerHTML = '<option value="">All Networks</option>' +
+                networks.sort().map(function(n) { return '<option value="' + n + '">' + n + '</option>'; }).join('');
         }
-        provs.sort();
-        var sel = document.getElementById('filterProvider');
-        sel.innerHTML = '<option value="">All Providers</option>';
-        for (var j = 0; j < provs.length; j++) {
-            var opt = document.createElement('option');
-            opt.value = provs[j];
-            opt.textContent = provs[j];
-            sel.appendChild(opt);
-        }
-    }
 
-    function applyFilters() {
-        var prov = document.getElementById('filterProvider').value;
-        var dataRange = document.getElementById('filterData').value;
-        var maxPrice = document.getElementById('filterPrice').value;
-        filteredPlans = allPlans.filter(function(plan) {
-            if (prov && plan.provider_name !== prov) return false;
-            if (maxPrice && plan.price > parseFloat(maxPrice)) return false;
-            if (dataRange) {
-                var dg = plan.data_gb;
-                if (dataRange === 'unlimited') { if (dg !== -1 && dg < 999) return false; }
-                else if (dataRange === '100+') { if (dg < 100 && dg !== -1) return false; }
-                else {
-                    var parts = dataRange.split('-');
-                    var mn = Number(parts[0]);
-                    var mx = Number(parts[1]);
-                    if (dg === -1 || dg < mn || dg > mx) return false;
+        function populateSourceFilter() {
+            var sources = [];
+            var seen = {};
+            allPlans.forEach(function(p) {
+                var s = extractSource(p.url);
+                if (s && !seen[s]) { seen[s] = true; sources.push(s); }
+            });
+            var sel = document.getElementById('filterSource');
+            sel.innerHTML = '<option value="">All Sources</option>' +
+                sources.sort().map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+        }
+
+        function extractSource(url) {
+            if (!url) return 'Unknown';
+            try { return new URL(url).hostname.replace('www.', '').split('.')[0]; } catch(e) { return 'Unknown'; }
+        }
+
+        function applyFilters() {
+            var network = document.getElementById('filterNetwork').value;
+            var dataFilter = document.getElementById('filterData').value;
+            var contract = document.getElementById('filterContract').value;
+            var maxPrice = parseFloat(document.getElementById('filterMaxPrice').value) || Infinity;
+            var source = document.getElementById('filterSource').value;
+
+            filteredPlans = allPlans.filter(function(plan) {
+                var planNetwork = plan.network_provider || plan.provider_name || '';
+                var planData = plan.data_gb;
+                var planUnlimited = plan.data_unlimited;
+                var planContract = plan.contract_months;
+                var planPrice = plan.current_price || plan.price || 0;
+                var planSource = extractSource(plan.url);
+
+                if (network && planNetwork.toLowerCase().indexOf(network.toLowerCase()) < 0) return false;
+                if (source && planSource.toLowerCase() !== source.toLowerCase()) return false;
+                if (dataFilter) {
+                    if (dataFilter === 'unlimited' && !planUnlimited) return false;
+                    if (dataFilter !== 'unlimited') {
+                        if (dataFilter.indexOf('+') >= 0) {
+                            var min = parseInt(dataFilter);
+                            if (planUnlimited || !planData || planData < min) return false;
+                        } else {
+                            var parts = dataFilter.split('-').map(Number);
+                            if (planUnlimited || !planData || planData < parts[0] || planData > parts[1]) return false;
+                        }
+                    }
                 }
+                if (contract && planContract != contract) return false;
+                if (planPrice > maxPrice) return false;
+                return true;
+            });
+            sortPlans();
+            renderTable();
+            document.getElementById('filteredCount').textContent = 'Showing ' + filteredPlans.length + ' of ' + allPlans.length;
+        }
+
+        function sortTable(column) {
+            if (sortColumn === column) { sortAsc = !sortAsc; } else { sortColumn = column; sortAsc = true; }
+            sortPlans();
+            renderTable();
+        }
+
+        function sortPlans() {
+            filteredPlans.sort(function(a, b) {
+                var valA, valB;
+                switch(sortColumn) {
+                    case 'network': valA = (a.network_provider || a.provider_name || '').toLowerCase(); valB = (b.network_provider || b.provider_name || '').toLowerCase(); break;
+                    case 'name': valA = (a.name || '').toLowerCase(); valB = (b.name || '').toLowerCase(); break;
+                    case 'price': valA = a.current_price || a.price || 0; valB = b.current_price || b.price || 0; break;
+                    case 'data': valA = a.data_unlimited ? 9999 : (a.data_gb || 0); valB = b.data_unlimited ? 9999 : (b.data_gb || 0); break;
+                    default: valA = a[sortColumn]; valB = b[sortColumn];
+                }
+                if (valA < valB) return sortAsc ? -1 : 1;
+                if (valA > valB) return sortAsc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function renderTable() {
+            var tbody = document.getElementById('plansTable');
+            if (filteredPlans.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">No plans match your filters</td></tr>';
+                return;
             }
-            return true;
-        });
-        sortPlans();
-        renderTable();
-        updateChart();
-    }
-
-    function clearFilters() {
-        document.getElementById('filterProvider').value = '';
-        document.getElementById('filterData').value = '';
-        document.getElementById('filterPrice').value = '';
-        applyFilters();
-    }
-
-    function sortTable(field) {
-        if (currentSort.field === field) {
-            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-        } else {
-            currentSort.field = field;
-            currentSort.direction = 'asc';
+            var rows = filteredPlans.slice(0, 200).map(function(plan, idx) {
+                var network = plan.network_provider || plan.provider_name || 'Unknown';
+                var price = plan.current_price || plan.price || 0;
+                var dataStr = plan.data_unlimited ? 'Unlimited' : (plan.data_gb ? plan.data_gb + ' GB' : '?');
+                var contractStr = plan.contract_months ? plan.contract_months + ' mo' : '?';
+                var sel = selectedPlan && selectedPlan.id === plan.id;
+                return '<tr class="' + (sel ? 'selected' : '') + '" onclick="selectPlan(' + idx + ')">' +
+                    '<td class="px-4 py-3 font-medium">' + network + '</td>' +
+                    '<td class="px-4 py-3">' + (plan.name || 'Unknown') + '</td>' +
+                    '<td class="px-4 py-3 font-semibold">&pound;' + price.toFixed(2) + '</td>' +
+                    '<td class="px-4 py-3">' + dataStr + '</td>' +
+                    '<td class="px-4 py-3">' + contractStr + '</td>' +
+                    '</tr>';
+            });
+            tbody.innerHTML = rows.join('');
         }
-        sortPlans();
-        renderTable();
-    }
 
-    function sortPlans() {
-        filteredPlans.sort(function(a, b) {
-            var vA, vB;
-            if (currentSort.field === 'data') {
-                vA = a.data_gb === -1 ? 9999 : a.data_gb;
-                vB = b.data_gb === -1 ? 9999 : b.data_gb;
-            } else if (currentSort.field === 'contract') {
-                vA = a.contract_length; vB = b.contract_length;
-            } else if (currentSort.field === 'price') {
-                vA = a.price; vB = b.price;
-            } else if (currentSort.field === 'provider_name') {
-                vA = a.provider_name; vB = b.provider_name;
-            } else {
-                vA = a[currentSort.field]; vB = b[currentSort.field];
+        function selectPlan(index) {
+            selectedPlan = filteredPlans[index];
+            renderTable();
+            showO2Comparison(selectedPlan);
+            showPriceHistory(selectedPlan);
+        }
+
+        function showO2Comparison(plan) {
+            var panel = document.getElementById('o2ComparePanel');
+            if (!plan) {
+                panel.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">Click on any plan to compare</p>';
+                return;
             }
-            if (typeof vA === 'string') return currentSort.direction === 'asc' ? vA.localeCompare(vB) : vB.localeCompare(vA);
-            return currentSort.direction === 'asc' ? vA - vB : vB - vA;
-        });
-        updateSortArrows();
-    }
+            var planData = plan.data_unlimited ? 9999 : (plan.data_gb || 0);
+            var planPrice = plan.current_price || plan.price || 0;
+            var planContract = plan.contract_months || 12;
+            var closestO2 = null;
+            var minScore = Infinity;
+            o2Plans.forEach(function(o2) {
+                var o2Data = o2.data_unlimited ? 9999 : (o2.data_gb || 0);
+                var o2Contract = o2.contract_months || 12;
+                var score = Math.abs(planData - o2Data) + (planContract === o2Contract ? 0 : 50);
+                if (score < minScore) { minScore = score; closestO2 = o2; }
+            });
 
-    function updateSortArrows() {
-        var arrows = document.querySelectorAll('.sort-arrow');
-        for (var i = 0; i < arrows.length; i++) { arrows[i].textContent = ''; arrows[i].className = 'sort-arrow'; }
-        var active = document.getElementById('sort-' + currentSort.field);
-        if (active) {
-            active.textContent = currentSort.direction === 'asc' ? ' \u25B2' : ' \u25BC';
-            active.className = 'sort-arrow active';
-        }
-    }
+            var planDataStr = plan.data_unlimited ? 'Unlimited' : (plan.data_gb || '?') + ' GB';
+            var selectedHtml =
+                '<div class="p-3 bg-gray-50 rounded-lg mb-3">' +
+                '<p class="text-xs text-gray-400 uppercase mb-1">Selected</p>' +
+                '<p class="font-semibold">' + (plan.name || 'Unknown') + '</p>' +
+                '<p class="text-sm text-gray-500">' + planDataStr + ' | ' + (plan.contract_months || '?') + ' mo</p>' +
+                '<p class="text-xl font-bold mt-2">&pound;' + planPrice.toFixed(2) + '/mo</p>' +
+                '</div>';
 
-    function getTypeBadge(type) {
-        var CQ = 'class' + String.fromCharCode(61) + String.fromCharCode(34);
-        if (!type) return '<span ' + CQ + 'badge badge-mno">MNO</span>';
-        var t = type.toLowerCase();
-        if (t === 'mvno') return '<span ' + CQ + 'badge badge-mvno">MVNO</span>';
-        if (t === 'affiliate') return '<span ' + CQ + 'badge badge-affiliate">Affiliate</span>';
-        return '<span ' + CQ + 'badge badge-mno">MNO</span>';
-    }
-
-    function escapeHtml(str) {
-        if (!str) return '';
-        var div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
-
-    function escapeAttr(str) {
-        if (!str) return '';
-        return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    function renderTable() {
-        var CQ = 'class' + String.fromCharCode(61) + String.fromCharCode(34);
-        var tbody = document.getElementById('plansTableBody');
-        document.getElementById('planCount').textContent = filteredPlans.length + ' plans';
-        if (filteredPlans.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="padding:3rem;text-align:center;color:#6b7280">No plans match your filters.</td></tr>';
-            return;
-        }
-        var html = '';
-        for (var i = 0; i < filteredPlans.length; i++) {
-            var p = filteredPlans[i];
-            var isExpanded = !!expandedRows[p.id];
-            var bgColor = i % 2 === 0 ? '#ffffff' : '#f9fafb';
-            var dataText = (p.data_gb === -1 || p.data_gb >= 999)
-                ? '<span style="color:#16a34a;font-weight:600">Unlimited</span>'
-                : p.data_gb + ' GB';
-            var perksText = (p.extras && p.extras.trim()) ? escapeHtml(p.extras) : '\u2014';
-            var sourceText = (p.source_site && p.source_site.trim()) ? escapeHtml(p.source_site) : '\u2014';
-            var networkHtml = '<span ' + CQ + 'badge badge-4g">4G \u2713</span> ';
-            if (p.is_5g) {
-                networkHtml += '<span ' + CQ + 'badge badge-5g-yes">5G \u2713</span>';
-            } else {
-                networkHtml += '<span ' + CQ + 'badge badge-5g-no">5G \u2717</span>';
+            if (!closestO2) {
+                panel.innerHTML = selectedHtml +
+                    '<p class="text-center text-gray-400 py-4">No O2 equivalent found</p>';
+                return;
             }
-            var linkHtml = p.url
-                ? '<a href="' + escapeAttr(p.url) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#0050FF;font-weight:500;white-space:nowrap">View Deal \u2192</a>'
-                : '<span style="color:#9ca3af">\u2014</span>';
 
-            html += '<tr ' + CQ + 'plan-row" style="background:' + bgColor + ';cursor:pointer" onclick="toggleRow(' + p.id + ')">';
-            html += '<td ' + CQ + 'text-sm"><span ' + CQ + 'badge badge-provider">' + escapeHtml(p.provider_name) + '</span></td>';
-            html += '<td ' + CQ + 'text-sm">' + getTypeBadge(p.provider_type) + '</td>';
-            html += '<td ' + CQ + 'text-sm" style="color:#4b5563">' + sourceText + '</td>';
-            html += '<td ' + CQ + 'text-sm" style="font-weight:600;color:#111827">&pound;' + p.price.toFixed(2) + '<span style="color:#9ca3af;font-weight:400">/mo</span></td>';
-            html += '<td ' + CQ + 'text-sm">' + dataText + '</td>';
-            html += '<td ' + CQ + 'text-sm" style="color:#4b5563">' + p.contract_length + ' mo</td>';
-            html += '<td ' + CQ + 'text-sm" style="color:#4b5563;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeAttr(p.extras || '') + '">' + perksText + '</td>';
-            html += '<td ' + CQ + 'text-sm" style="white-space:nowrap">' + networkHtml + '</td>';
-            html += '<td ' + CQ + 'text-sm">' + linkHtml + '</td>';
-            html += '</tr>';
+            var o2Price = closestO2.current_price || closestO2.price || 0;
+            var priceDiff = o2Price - planPrice;
+            var diffColor = priceDiff > 0 ? '#EF4444' : (priceDiff < 0 ? '#10B981' : '#999');
+            var diffLabel = priceDiff > 0 ? ('+&pound;' + priceDiff.toFixed(2) + ' more') :
+                           (priceDiff < 0 ? ('&pound;' + Math.abs(priceDiff).toFixed(2) + ' less') : 'Same price');
+            var o2DataStr = closestO2.data_unlimited ? 'Unlimited' : (closestO2.data_gb || '?') + ' GB';
 
-    var AQ = String.fromCharCode(61) + String.fromCharCode(34);
-
-    function renderDetailRow(p, isExpanded, CQ) {
-        var h = '';
-        h += '<tr ' + CQ + 'detail-row' + (isExpanded ? ' open' : '') + '" id' + AQ + 'detail-' + p.id + '">';
-        h += '<td colspan' + AQ + '9">';
-        h += '<div ' + CQ + 'detail-inner">';
-        h += '<div style' + AQ + 'display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem">';
-        h += '<div style' + AQ + 'background:white;padding:12px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.05)"><div style' + AQ + 'font-size:11px;color:#6b7280;margin-bottom:4px">Plan Name</div><div style' + AQ + 'font-weight:600;font-size:14px;color:#1f2937">' + escapeHtml(p.name) + '</div></div>';
-        h += '<div style' + AQ + 'background:white;padding:12px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.05)"><div style' + AQ + 'font-size:11px;color:#6b7280;margin-bottom:4px">Provider</div><div style' + AQ + 'font-weight:600;font-size:14px;color:#1f2937">' + escapeHtml(p.provider_name) + '</div></div>';
-        h += '<div style' + AQ + 'background:white;padding:12px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.05)"><div style' + AQ + 'font-size:11px;color:#6b7280;margin-bottom:4px">Monthly Price</div><div style' + AQ + 'font-weight:600;font-size:18px;color:#111827">&pound;' + p.price.toFixed(2) + '</div></div>';
-        h += '<div style' + AQ + 'background:white;padding:12px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.05)"><div style' + AQ + 'font-size:11px;color:#6b7280;margin-bottom:4px">Data Allowance</div><div style' + AQ + 'font-weight:600;font-size:14px;color:#1f2937">' + ((p.data_gb === -1 || p.data_gb >= 999) ? 'Unlimited' : p.data_gb + ' GB') + '</div></div>';
-        h += '</div>';
-        if (p.extras && p.extras.trim()) {
-            h += '<div style' + AQ + 'background:white;padding:12px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.05);margin-bottom:1rem"><div style' + AQ + 'font-size:11px;color:#6b7280;margin-bottom:4px">Extras &amp; Perks</div><div style' + AQ + 'font-size:14px;color:#374151">' + escapeHtml(p.extras) + '</div></div>';
+            panel.innerHTML = selectedHtml +
+                '<div class="text-center text-2xl text-gray-300 my-2">&#8595;</div>' +
+                '<div class="p-3 bg-blue-50 rounded-lg border-2 border-blue-200">' +
+                '<div class="flex items-center gap-2 mb-2">' +
+                '<span class="bg-blue-900 text-white px-2 py-0.5 rounded text-xs font-bold">O2</span>' +
+                '<span class="text-xs text-gray-400">Closest Match</span>' +
+                '</div>' +
+                '<p class="font-semibold">' + (closestO2.name || 'O2 Plan') + '</p>' +
+                '<p class="text-sm text-gray-500">' + o2DataStr + ' | ' + (closestO2.contract_months || '?') + ' mo</p>' +
+                '<p class="text-xl font-bold mt-2">&pound;' + o2Price.toFixed(2) + '/mo</p>' +
+                '<p class="mt-2 font-medium" style="color:' + diffColor + '">' + diffLabel + '</p>' +
+                '</div>' +
+                (closestO2.url ? '<a href="' + closestO2.url + '" target="_blank" class="block text-center mt-3 text-blue-600 hover:underline text-sm">View on O2 &rarr;</a>' : '');
         }
-        if (p.last_updated) {
-            h += '<div style' + AQ + 'font-size:11px;color:#9ca3af;margin-bottom:12px">Last updated: ' + new Date(p.last_updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</div>';
-        }
-        h += '<div style' + AQ + 'background:white;padding:12px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.05)"><div style' + AQ + 'font-size:11px;color:#6b7280;margin-bottom:8px">Price History</div><div id' + AQ + 'detail-chart-' + p.id + '" style' + AQ + 'min-height:180px"><div style' + AQ + 'text-align:center;color:#9ca3af;padding:2rem;font-size:14px">' + (isExpanded ? 'Loading chart...' : 'Click row to expand') + '</div></div></div>';
-        h += '</div></td></tr>';
-        return h;
-    }
 
-    function renderTable() {
-        var CQ = 'class' + AQ.charAt(0) + AQ.charAt(1);
-        var tbody = document.getElementById('plansTableBody');
-        document.getElementById('planCount').textContent = filteredPlans.length + ' plans';
-        if (filteredPlans.length === 0) {
-            tbody.innerHTML = '<tr><td colspan' + AQ + '9" style' + AQ + 'padding:3rem;text-align:center;color:#6b7280">No plans match your filters.</td></tr>';
-            return;
+        function showPriceHistory(plan) {
+            var section = document.getElementById('priceHistorySection');
+            var nameSpan = document.getElementById('selectedPlanName');
+            section.style.display = 'block';
+            nameSpan.textContent = plan.name || 'Selected Plan';
+            var ctx = document.getElementById('priceHistoryChart').getContext('2d');
+            if (priceHistoryChart) priceHistoryChart.destroy();
+
+            if (typeof Chart === 'undefined') { return; }
+            fetch(API_BASE + '/api/v1/plans/' + plan.id + '/history')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var history = data.history || [];
+                    var labels, prices;
+                    if (history.length > 1) {
+                        labels = history.map(function(h) {
+                            var d = new Date(h.date);
+                            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                        });
+                        prices = history.map(function(h) { return h.price; });
+                    } else {
+                        var price = plan.current_price || plan.price || 0;
+                        labels = [];
+                        prices = [];
+                        var today = new Date();
+                        for (var i = 6; i >= 0; i--) {
+                            var d = new Date(today);
+                            d.setDate(d.getDate() - i * 7);
+                            labels.push(d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }));
+                            prices.push(price);
+                        }
+                    }
+                    priceHistoryChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Price',
+                                data: prices,
+                                borderColor: '#002F6C',
+                                backgroundColor: 'rgba(0, 47, 108, 0.1)',
+                                fill: true,
+                                tension: 0.3
+                            }]
+                        },
+                        options: { responsive: true, plugins: { legend: { display: false } } }
+                    });
+                })
+                .catch(function(e) { console.error('History error:', e); });
         }
-        var html = '';
-        for (var i = 0; i < filteredPlans.length; i++) {
-            var p = filteredPlans[i];
-            var isExpanded = !!expandedRows[p.id];
-            var bgColor = i % 2 === 0 ? '#ffffff' : '#f9fafb';
-            var dataText = (p.data_gb === -1 || p.data_gb >= 999)
-                ? '<span style' + AQ + 'color:#16a34a;font-weight:600">Unlimited</span>'
-                : p.data_gb + ' GB';
-            var perksText = (p.extras && p.extras.trim()) ? escapeHtml(p.extras) : '\u2014';
-            var sourceText = (p.source_site && p.source_site.trim()) ? escapeHtml(p.source_site) : '\u2014';
-            var networkHtml = '<span ' + CQ + 'badge badge-4g">4G \u2713</span> ';
-            if (p.is_5g) {
-                networkHtml += '<span ' + CQ + 'badge badge-5g-yes">5G \u2713</span>';
-            } else {
-                networkHtml += '<span ' + CQ + 'badge badge-5g-no">5G \u2717</span>';
+
+        function updateCharts() {
+            if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
+            var networkPrices = {};
+            allPlans.forEach(function(p) {
+                var n = p.network_provider || p.provider_name || 'Other';
+                var pr = p.current_price || p.price || 0;
+                if (!networkPrices[n]) networkPrices[n] = [];
+                networkPrices[n].push(pr);
+            });
+            var nets = Object.keys(networkPrices).sort();
+            var avgs = nets.map(function(n) { return networkPrices[n].reduce(function(a, b) { return a + b; }, 0) / networkPrices[n].length; });
+            var colors = ['#002F6C', '#E6007A', '#10B981', '#F59E0B', '#6366F1', '#EC4689', '#14B8A6', '#8B5CF6'];
+
+            if (priceDistChart) priceDistChart.destroy();
+            priceDistChart = new Chart(document.getElementById('priceDistChart'), {
+                type: 'bar',
+                data: { labels: nets.slice(0, 8), datasets: [{ data: avgs.slice(0, 8), backgroundColor: colors }] },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            var dataCats = { '1-5 GB': [], '6-15 GB': [], '16-50 GB': [], '51-100 GB': [], '100+ GB': [], 'Unlimited': [] };
+            allPlans.forEach(function(p) {
+                var pr = p.current_price || p.price || 0;
+                var d = p.data_unlimited ? 9999 : (p.data_gb || 0);
+                if (d >= 1000) dataCats['Unlimited'].push(pr);
+                else if (d > 100) dataCats['100+ GB'].push(pr);
+                else if (d > 50) dataCats['51-100 GB'].push(pr);
+                else if (d > 15) dataCats['16-50 GB'].push(pr);
+                else if (d > 5) dataCats['6-15 GB'].push(pr);
+                else dataCats['1-5 GB'].push(pr);
+            });
+            var catLabels = Object.keys(dataCats);
+            var catAvgs = catLabels.map(function(c) {
+                return dataCats[c].length > 0 ? dataCats[c].reduce(function(a, b) { return a + b; }, 0) / dataCats[c].length : 0;
+            });
+
+            if (dataVsPriceChart) dataVsPriceChart.destroy();
+            dataVsPriceChart = new Chart(document.getElementById('dataVsPriceChart'), {
+                type: 'bar',
+                data: { labels: catLabels, datasets: [{ data: catAvgs, backgroundColor: '#E6007A' }] },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+
+        async function startScrape() {
+            try {
+                var btn = document.getElementById('scrapeBtn');
+                btn.textContent = 'Starting...';
+                btn.disabled = true;
+                var r = await fetch(API_BASE + '/api/v1/scrape/start', { method: 'POST' });
+                var d = await r.json();
+                if (d.status === 'already_running') {
+                    btn.textContent = 'In Progress...';
+                    showScrapeProgress();
+                    scrapePolling = setInterval(pollScrapeProgress, 2000);
+                    return;
+                }
+                btn.textContent = 'Scraping...';
+                showScrapeProgress();
+                scrapePolling = setInterval(pollScrapeProgress, 2000);
+            } catch (e) {
+                alert('Failed to start scrape: ' + e.message);
+                var btn2 = document.getElementById('scrapeBtn');
+                btn2.textContent = 'Run Scrape';
+                btn2.disabled = false;
             }
-            var linkHtml = p.url
-                ? '<a href' + AQ + '' + escapeAttr(p.url) + '" target' + AQ + '_blank" rel' + AQ + 'noopener" onclick' + AQ + 'event.stopPropagation()" style' + AQ + 'color:#0050FF;font-weight:500;white-space:nowrap">View Deal \u2192</a>'
-                : '<span style' + AQ + 'color:#9ca3af">\u2014</span>';
-
-            html += '<tr ' + CQ + 'plan-row" style' + AQ + 'background:' + bgColor + ';cursor:pointer" onclick' + AQ + 'toggleRow(' + p.id + ')">';
-            html += '<td ' + CQ + 'text-sm"><span ' + CQ + 'badge badge-provider">' + escapeHtml(p.provider_name) + '</span></td>';
-            html += '<td ' + CQ + 'text-sm">' + getTypeBadge(p.provider_type) + '</td>';
-            html += '<td ' + CQ + 'text-sm" style' + AQ + 'color:#4b5563">' + sourceText + '</td>';
-            html += '<td ' + CQ + 'text-sm" style' + AQ + 'font-weight:600;color:#111827">&pound;' + p.price.toFixed(2) + '<span style' + AQ + 'color:#9ca3af;font-weight:400">/mo</span></td>';
-            html += '<td ' + CQ + 'text-sm">' + dataText + '</td>';
-            html += '<td ' + CQ + 'text-sm" style' + AQ + 'color:#4b5563">' + p.contract_length + ' mo</td>';
-            html += '<td ' + CQ + 'text-sm" style' + AQ + 'color:#4b5563;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title' + AQ + '' + escapeAttr(p.extras || '') + '">' + perksText + '</td>';
-            html += '<td ' + CQ + 'text-sm" style' + AQ + 'white-space:nowrap">' + networkHtml + '</td>';
-            html += '<td ' + CQ + 'text-sm">' + linkHtml + '</td>';
-            html += '</tr>';
-            html += renderDetailRow(p, isExpanded, CQ);
         }
-        tbody.innerHTML = html;
-        updateSortArrows();
-        var ek = Object.keys(expandedRows);
-        for (var k = 0; k < ek.length; k++) {
-            if (expandedRows[ek[k]]) loadDetailChart(parseInt(ek[k]));
+
+        function showScrapeProgress() {
+            var bar = document.getElementById('scrapeProgressBar');
+            if (bar) return;
+            var container = document.createElement('div');
+            container.id = 'scrapeProgressBar';
+            container.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1E293B;color:white;padding:16px 24px;z-index:9999;box-shadow:0 -4px 20px rgba(0,0,0,0.3);font-family:monospace;max-height:40vh;overflow-y:auto';
+            container.innerHTML =
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+                '<span style="font-weight:700;font-size:14px">Scrape In Progress</span>' +
+                '<div><span id="scrapeStats" style="font-size:12px;opacity:0.8"></span>' +
+                '<button onclick="closeScrapeBar()" style="margin-left:12px;background:#EF4444;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">Close</button>' +
+                '</div></div>' +
+                '<div style="background:#374151;border-radius:4px;height:6px;margin-bottom:8px">' +
+                '<div id="scrapeBar" style="height:100%;background:linear-gradient(90deg,#002F6C,#E6007A);border-radius:4px;transition:width 0.3s;width:0%"></div>' +
+                '</div>' +
+                '<div id="scrapeLogs" style="font-size:11px;line-height:1.6;max-height:20vh;overflow-y:auto;opacity:0.9"></div>';
+            document.body.appendChild(container);
         }
-    }
 
-    function toggleRow(planId) {
-        var row = document.getElementById('detail-' + planId);
-        if (!row) return;
-        if (expandedRows[planId]) {
-            delete expandedRows[planId];
-            row.classList.remove('open');
-            if (detailCharts[planId]) { detailCharts[planId].destroy(); delete detailCharts[planId]; }
-        } else {
-            expandedRows[planId] = true;
-            row.classList.add('open');
-            loadDetailChart(planId);
+        async function pollScrapeProgress() {
+            try {
+                var r = await fetch(API_BASE + '/api/v1/scrape/progress');
+                var d = await r.json();
+                var pct = d.total > 0 ? Math.round((d.completed / d.total) * 100) : 0;
+                var bar = document.getElementById('scrapeBar');
+                var stats = document.getElementById('scrapeStats');
+                var logs = document.getElementById('scrapeLogs');
+                if (bar) bar.style.width = pct + '%';
+                if (stats) stats.textContent = d.completed + '/' + d.total + ' providers | ' + d.plans_found + ' plans | ' + pct + '%';
+                if (logs && d.logs) {
+                    var logLines = d.logs.slice(-30).map(function(l) {
+                        var color = '#9CA3AF';
+                        if (l.indexOf('found') >= 0 && l.indexOf('0 plans') < 0) color = '#34D399';
+                        if (l.indexOf('Error') >= 0 || l.indexOf('error') >= 0) color = '#F87171';
+                        if (l.indexOf('Scraping') >= 0) color = '#60A5FA';
+                        if (l.indexOf('complete') >= 0) color = '#FBBF24';
+                        return '<div style="color:' + color + '">' + l + '</div>';
+                    });
+                    logs.innerHTML = logLines.join('');
+                    logs.scrollTop = logs.scrollHeight;
+                }
+                if (!d.running && d.completed > 0) {
+                    clearInterval(scrapePolling);
+                    scrapePolling = null;
+                    if (bar) bar.style.width = '100%';
+                    if (stats) stats.textContent = 'Complete! ' + d.plans_found + ' plans found';
+                    var btn = document.getElementById('scrapeBtn');
+                    btn.textContent = 'Run Scrape';
+                    btn.disabled = false;
+                    setTimeout(loadData, 1000);
+                }
+            } catch (e) {
+                console.error('Poll error:', e);
+            }
         }
-    }
 
-    async function loadDetailChart(planId) {
-        var container = document.getElementById('detail-chart-' + planId);
-        if (!container) return;
-        if (detailCharts[planId]) { detailCharts[planId].destroy(); delete detailCharts[planId]; }
-        container.innerHTML = '<div style' + AQ + 'text-align:center;color:#9ca3af;padding:1.5rem;font-size:14px">Loading price history...</div>';
-        try {
-            var res = await fetch(API_BASE + '/api/price-history?plan_id=' + planId);
-            if (!res.ok) { container.innerHTML = '<div style' + AQ + 'text-align:center;color:#9ca3af;padding:1.5rem;font-size:14px">No price history available</div>'; return; }
-            var data = await res.json();
-            if (!data || data.length === 0) { container.innerHTML = '<div style' + AQ + 'text-align:center;color:#9ca3af;padding:1.5rem;font-size:14px">No price history available</div>'; return; }
-            container.innerHTML = '';
-            var opts = {
-                series: [{ name: 'Price', data: data.map(function(d) { return { x: new Date(d.date), y: d.price }; }) }],
-                chart: { type: 'area', height: 180, toolbar: { show: false }, fontFamily: 'inherit' },
-                colors: ['#0050FF'],
-                fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.05 } },
-                stroke: { curve: 'smooth', width: 2.5 },
-                xaxis: { type: 'datetime', labels: { style: { fontSize: '11px', colors: '#94a3b8' } } },
-                yaxis: { labels: { formatter: function(v) { return '\u00A3' + v.toFixed(2); }, style: { fontSize: '11px', colors: '#94a3b8' } } },
-                grid: { borderColor: '#f1f5f9', strokeDashArray: 4 },
-                tooltip: { y: { formatter: function(v) { return '\u00A3' + v.toFixed(2) + '/mo'; } } }
-            };
-            var ch = new ApexCharts(container, opts);
-            ch.render();
-            detailCharts[planId] = ch;
-        } catch (e) {
-            container.innerHTML = '<div style' + AQ + 'text-align:center;color:#9ca3af;padding:1.5rem;font-size:14px">Failed to load price history</div>';
+        function closeScrapeBar() {
+            var bar = document.getElementById('scrapeProgressBar');
+            if (bar) bar.remove();
+            if (scrapePolling) { clearInterval(scrapePolling); scrapePolling = null; }
+            var btn = document.getElementById('scrapeBtn');
+            btn.textContent = 'Run Scrape';
+            btn.disabled = false;
         }
-    }
-
-    async function updateChart() {
-        var cont = document.getElementById('chartContainer');
-        if (filteredPlans.length === 0) { cont.style.display = 'none'; return; }
-        try {
-            var prov = document.getElementById('filterProvider').value;
-            var url = API_BASE + '/api/price-history';
-            if (prov) url += '?provider=' + encodeURIComponent(prov);
-            var res = await fetch(url);
-            if (!res.ok) { cont.style.display = 'none'; return; }
-            var data = await res.json();
-            if (!data || data.length === 0) { cont.style.display = 'none'; return; }
-            cont.style.display = 'block';
-            renderMainChart(data);
-        } catch (e) { cont.style.display = 'none'; }
-    }
-
-    function renderMainChart(data) {
-        if (chart) chart.destroy();
-        var opts = {
-            series: [{ name: 'Avg Price', data: data.map(function(d) { return { x: new Date(d.date), y: d.avg_price }; }) }],
-            chart: { type: 'line', height: 300, toolbar: { show: false }, fontFamily: 'inherit' },
-            colors: ['#ED1C24'],
-            stroke: { curve: 'smooth', width: 3 },
-            xaxis: { type: 'datetime' },
-            yaxis: { labels: { formatter: function(v) { return '\u00A3' + v.toFixed(2); } } },
-            grid: { borderColor: '#f1f5f9', strokeDashArray: 4 }
-        };
-        chart = new ApexCharts(document.getElementById('priceChart'), opts);
-        chart.render();
-    }
-
-    async function triggerScrape() {
-        try {
-            var res = await fetch(API_BASE + '/api/scrape/trigger', { method: 'POST' });
-            if (res.ok) showProgress();
-        } catch (e) { alert('Failed to start scrape'); }
-    }
-
-    function showProgress() {
-        var sec = document.getElementById('progressSection');
-        sec.style.display = 'block';
-        document.getElementById('progressBar').style.width = '0%';
-        document.getElementById('progressText').textContent = 'Starting scrape...';
-        document.getElementById('progressDate').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
-
-    function updateProgress(data) {
-        var sec = document.getElementById('progressSection');
-        sec.style.display = 'block';
-        var pct = data.total > 0 ? (data.completed / data.total) * 100 : 0;
-        document.getElementById('progressBar').style.width = pct + '%';
-        document.getElementById('progressText').textContent = 'Scraping: ' + data.completed + '/' + data.total + ' (' + data.plans_found + ' plans)';
-        if (data.status === 'completed') {
-            document.getElementById('progressText').textContent = 'Complete: ' + data.plans_found + ' plans';
-            setTimeout(function() { sec.style.display = 'none'; loadScrapeRuns(); loadPlans(); }, 2000);
-        }
-    }
-
-    function connectWebSocket() {
-        try {
-            ws = new WebSocket('ws://' + location.host + '/api/scrape/logs');
-            ws.onmessage = function(ev) {
-                var data = JSON.parse(ev.data);
-                if (data.type === 'progress') updateProgress(data);
-            };
-            ws.onclose = function() { setTimeout(connectWebSocket, 5000); };
-        } catch (e) { console.error('WebSocket failed:', e); }
-    }
-
-</script>
+    </script>
 </body>
 </html>

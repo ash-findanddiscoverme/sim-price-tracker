@@ -1,0 +1,118 @@
+# Interaction sequences for the advanced crawler
+
+default_sequence:
+  - type: dismiss_cookie
+    selectors:
+      - "#onetrust-accept-btn-handler"
+      - "[data-testid='cookie-accept']"
+      - "button:has-text('Accept')"
+      - "button:has-text('Accept all')"
+      - "button:has-text('I agree')"
+      - ".cookie-banner button"
+    timeout: 3000
+    optional: true
+
+  - type: wait_for_content
+    selectors:
+      - "[class*='price']"
+      - "[class*='plan']"
+      - "[class*='tariff']"
+      - "[class*='deal']"
+    timeout: 15000
+
+  - type: click_load_more
+    selectors:
+      - "button:has-text('Load more')"
+      - "button:has-text('Show more')"
+      - "a:has-text('View all')"
+      - "button:has-text('Show all')"
+      - ".load-more"
+    max_clicks: 12
+    wait_between: 2000
+    optional: true
+
+  - type: infinite_scroll
+    scroll_count: 8
+    wait_between: 2500
+    stop_when_no_new_content: true
+    optional: true
+
+provider_overrides:
+  # EE - needs tab selection and contract filters
+  ee:
+    - type: click_tab
+      selectors:
+        - "[data-tab='sim-only']"
+        - "a:has-text('SIM only')"
+      optional: true
+    - type: select_filter
+      filter_name: contract
+      values:
+        - "1 month"
+        - "12 months"
+        - "24 months"
+      iterate_all: true
+      extract_after_each: true
+
+  # Three - needs contract filters
+  three:
+    - type: select_filter
+      filter_name: contract
+      values:
+        - "30 day"
+        - "12 months"
+        - "24 months"
+      iterate_all: true
+      extract_after_each: true
+
+  # Vodafone - needs contract filters
+  vodafone:
+    - type: select_filter
+      filter_name: contract
+      values:
+        - "1 month"
+        - "12 months"
+        - "24 months"
+      iterate_all: true
+      extract_after_each: true
+
+  # O2 - needs contract filters
+  o2:
+    - type: select_filter
+      filter_name: contract
+      values:
+        - "1 month"
+        - "12 months"
+        - "24 months"
+        - "36 months"
+      iterate_all: true
+      extract_after_each: true
+
+  # uSwitch - iterate by network for accurate attribution
+  uswitch:
+    - type: select_filter
+      filter_name: network
+      values:
+        - "EE"
+        - "Three"
+        - "Vodafone"
+        - "O2"
+        - "giffgaff"
+        - "VOXI"
+        - "iD Mobile"
+        - "Tesco Mobile"
+      iterate_all: true
+      extract_after_each: true
+
+  # MoneySupermarket - iterate by network
+  moneysupermarket:
+    - type: select_filter
+      filter_name: provider
+      values:
+        - "EE"
+        - "Three"
+        - "Vodafone"
+        - "O2"
+        - "giffgaff"
+      iterate_all: true
+      extract_after_each: true

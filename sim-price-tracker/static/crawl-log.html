@@ -113,7 +113,7 @@
             renderProviderStatus();
             addLog(`Started scraping: ${data.provider}`, 'info');
         } else if (data.type === 'provider_complete') {
-            providers[data.provider] = data.error ? 'error' : 'done';
+            providers[data.provider] = {status: data.error ? 'error' : 'done', plans: data.plans_found || 0};
             renderProviderStatus();
             if (data.error) {
                 addLog(`Error scraping ${data.provider}: ${data.error}`, 'error');
@@ -147,13 +147,16 @@
 
     function renderProviderStatus() {
         const container = document.getElementById('providerStatus');
-        container.innerHTML = Object.entries(providers).map(([name, status]) => {
+        container.innerHTML = Object.entries(providers).map(([name, info]) => {
+            let status = typeof info === 'string' ? info : info.status;
+            let count = typeof info === 'object' ? (info.plans || 0) : 0;
             let bg = '#f3f4f6';
             let color = '#64748b';
             if (status === 'running') { bg = '#dbeafe'; color = '#0050FF'; }
             else if (status === 'done') { bg = '#d1fae5'; color = '#059669'; }
             else if (status === 'error') { bg = '#fee2e2'; color = '#dc2626'; }
-            return `<div style="background:${bg};padding:12px;border-radius:8px"><span style="font-weight:600;color:${color}">${name}</span><p style="font-size:12px;color:gray;text-transform:capitalize">${status}</p></div>`;
+            let countHtml = count > 0 ? `<p style="font-size:14px;font-weight:700;color:${color}">${count} deals</p>` : '';
+            return `<div style="background:${bg};padding:12px;border-radius:8px"><span style="font-weight:600;color:${color}">${name}</span>${countHtml}<p style="font-size:12px;color:gray;text-transform:capitalize">${status}</p></div>`;
         }).join('');
     }
 

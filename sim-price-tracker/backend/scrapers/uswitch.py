@@ -1,108 +1,200 @@
+"""uSwitch scraper with article-based plan extraction and network attribution."""
+
 import re
-import json
 import logging
-from typing import List
-from .base import BaseScraper, ScrapedPlan
-from .playwright_helper import fetch_page_content
+from bs4 import BeautifulSoup
+from .unified_base import UnifiedScraper, ScrapedPlan, extract_contract, extract_network, KNOWN_NETWORKS
 
 logger = logging.getLogger(__name__)
 
-NETWORKS = ["EE", "Three", "O2", "Vodafone", "giffgaff", "VOXI", "iD Mobile", "Tesco Mobile", "Lyca Mobile", "Smarty"]
 
-class USwitchScraper(BaseScraper):
+class USwitchScraper(UnifiedScraper):
     provider_name = "uSwitch"
     provider_slug = "uswitch"
     provider_type = "affiliate"
-    base_url = "https://www.uswitch.com/mobiles/compare/sim_only_deals/"
+    urls = ['https://www.uswitch.com/mobiles/compare/sim_only_deals/']
+    use_playwright = True
 
-    async def scrape(self) -> List[ScrapedPlan]:
-        plans = []
+    async def _get_html_playwright(self, url):
         try:
-            # Try httpx first
-            resp = await self.session.get(self.base_url)
-            html = resp.text
-            if len(html) > 5000:
-                plans = self._parse(html)
-            
-            # Fallback to Playwright
-            if len(plans) < 5:
-                html = await fetch_page_content(self.base_url, wait_ms=15000)
-                if html:
-                    plans.extend(self._parse(html))
-            
-            logger.info(f"uSwitch: Found {len(plans)} plans")
-        except Exception as e:
-            logger.error(f"uSwitch error: {e}")
-        return self._dedupe(plans)
+            from playwright.async_api import async_playwright
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=['--disable-blink-features=AutomationControlled'],
+                )
+                ctx = await browser.new_context(
+                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    viewport={"width": 1920, "height": 1080},
+                    locale="en-GB",
+                )
+                page = await ctx.new_page()
+                await page.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => false})"
+                )
+                await page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(5000)
 
-    def _parse(self, html: str) -> List[ScrapedPlan]:
-        plans = []
-        # Try JSON first
-        for pat in [r'<script[^>]*id="__NEXT_DATA__"[^]*>(.*?)</script>', r'window\.__ssrState__\s*=\s*(\{.*?\});']:
-            m = re.search(pat, html, re.DOTALL)
-            if m:
-                try:
-                    data = json.loads(m.group(1))
-                    plans.extend(self._walk_json(data))
-                except: pass
-        
-        # Regex fallback
-        for m in re.finditer(r'££](\d+(?:\.\d+)?)\s*(?:/)?(?:mo|pm|month).{0,500}?(\d+)\s*GB', html, re.I|re.DOTALL):
-            try:
-                price = float(m.group(1))
-                gb = int(m.group(2))
-                if 5 < price < 100 and 1 <= gb <= 500:
-                    ctx = html[max(o,m.start()-500):m.end()+200]
-                    net = self._find_net(ctx)
-                    name = f"{net} {gb}GB" if net else f"{gb}GB SIM"
-                    plans.append(ScrapedPlan(name=name, price=price, data_gb=gb, url=self.base_url, is_5g='5g' in ctx.lower(), external_id=f"usw_{price}_{gb}"))
-            except: pass
-        return plans
-
-    def _walk_json(self, data, depth=0) -> List[ScrapedPlan]:
-        if depth > 10: return []
-        plans = []
-        if isinstance(data, dict):
-            price = None
-            for k in ('monthlyCost', 'price', 'monthlyPrice'):
-                if k in data:
+                # Dismiss cookie consent
+                for sel in [
+                    'button:has-text("Accept")',
+                    'button:has-text("Accept all")',
+                    '[id*="accept"]',
+                    '[class*="accept"]',
+                ]:
                     try:
-                        price = float(str(data[k]).replace('£', '').replace('£', ''))
-                        if 0 < price < 200: break
-                    except: pass
-            if price and 0 < price < 200:
-                gb = None
-                unlim = False
-                for k in ('data', 'dataAllowance', 'allowance'):
-                    if k in data:
-                        val = str(data[k]).lower()
-                        if 'unlimited' in val: unlim = True
-                        else:
-                            mt = re.search(r'(\d+)', val)
-                            if mt: gb = int(mt.group(1))
+                        btn = page.locator(sel).first
+                        if await btn.is_visible(timeout=1000):
+                            await btn.click()
+                            await page.wait_for_timeout(1000)
+                            break
+                    except Exception:
+                        pass
+
+                # Scroll to load more deals
+                for _ in range(8):
+                    await page.evaluate("window.scrollBy(0, 600)")
+                    await page.wait_for_timeout(800)
+
+                # Click "Show more deals" / "Load more" buttons
+                for _ in range(3):
+                    clicked = False
+                    for sel in [
+                        'button:has-text("Show more")',
+                        'button:has-text("Load more")',
+                        'a:has-text("Show more")',
+                        '[class*="show-more"]',
+                        '[class*="load-more"]',
+                    ]:
+                        try:
+                            btn = page.locator(sel).first
+                            if await btn.is_visible(timeout=1000):
+                                await btn.click()
+                                await page.wait_for_timeout(2000)
+                                clicked = True
+                                self._log(f"Clicked '{sel}'")
+                                break
+                        except Exception:
+                            pass
+                    if not clicked:
                         break
-                net = data.get('network', data.get('provider', ''))
-                name = f"{net} {gb}GB" if net and gb else f"{n} Unlimited" if net and unlim else f"{n}GB SIM" if gb else "SIM Only"
-                plans.append(ScrapedPlan(name=name, price=price, data_gb=gb, data_unlimited=unlim, url=self.base_url, is_5g=any('5g' in str(v).lower() for v in data.values() if isinstance(v, str)), external_id=f"usw_{price}_{gb or 0}"))
-            for v in data.values():
-                plans.extend(self._walk_json(v, depth+1))
-        elif isinstance(data, list):
-            for item in data:
-                plans.extend(self._walk_json(item, depth+1))
-        return plans
 
-    def _find_net(self, txt: str) -> str:
-        txtl = txt.lower()
-        for n in NETWORKS:
-            if n.lower() in txtl: return n
-        return ''
+                html = await page.content()
+                await browser.close()
+                self._log(f"Playwright (stealth) got {len(html)} chars from {url}")
+                return html if len(html) > 10000 else None
+        except Exception as e:
+            self._log(f"Playwright error: {e}", "error")
+        return None
 
-    def _dedupe(self, plans: List[ScrapedPlan]) -> List[ScrapedPlan]:
+    def _extract_from_html(self, html, url):
+        plans = []
+        soup = BeautifulSoup(html, 'html.parser')
         seen = set()
-        out = []
-        for p in plans:
-            k = (p.price, p.data_gb)
-            if k not in seen:
-                seen.add(k)
-                out.append(p)
-        return out
+
+        # uSwitch uses article elements or deal cards
+        cards = soup.select('article, [class*="deal-card"], [class*="result-card"]')
+        self._log(f"Found {len(cards)} deal cards/articles")
+
+        for card in cards:
+            text = card.get_text(' ', strip=True)
+            if len(text) < 30 or len(text) > 3000:
+                continue
+
+            # Must mention SIM or a known network
+            text_lower = text.lower()
+            if 'sim' not in text_lower and not any(n.lower() in text_lower for n in KNOWN_NETWORKS):
+                continue
+
+            # Extract network from the card text (e.g. "Vodafone SIM Deal")
+            network = None
+            for net in KNOWN_NETWORKS:
+                if re.search(r'\b' + re.escape(net) + r'\b', text, re.IGNORECASE):
+                    network = net
+                    break
+            if not network:
+                network_match = re.search(
+                    r"([\w\s]+?)(?:'s\s+Network|SIM\s+Deal|SIM\s+Only)", text
+                )
+                if network_match:
+                    candidate = network_match.group(1).strip()
+                    if 3 <= len(candidate) <= 30:
+                        network = candidate
+
+            # Extract price -- look for "£X.XX a month" pattern first
+            price = None
+            pm = re.search(r'£\s?(\d+(?:\.\d+)?)\s*(?:a month|/mo|per month|monthly)', text, re.IGNORECASE)
+            if pm:
+                price = float(pm.group(1))
+            else:
+                # Fallback: first £ amount that looks like a monthly price
+                all_prices = re.findall(r'£\s?(\d+(?:\.\d+)?)', text)
+                for p_str in all_prices:
+                    pv = float(p_str)
+                    if 3 <= pv <= 100:
+                        price = pv
+                        break
+
+            if not price or price < 3 or price > 100:
+                continue
+
+            # Extract data amount
+            data_gb = None
+            is_unlimited = 'unlimited' in text_lower
+            if not is_unlimited:
+                dm = re.search(r'(\d+)\s*GB', text, re.IGNORECASE)
+                if dm:
+                    data_gb = int(dm.group(1))
+            if not data_gb and not is_unlimited:
+                continue
+
+            # Extract contract length
+            contract_months = 1
+            cm = re.search(r'(\d+)\s*month', text, re.IGNORECASE)
+            if cm:
+                val = int(cm.group(1))
+                if 1 <= val <= 36:
+                    contract_months = val
+            if 'no contract' in text_lower or 'rolling' in text_lower:
+                contract_months = 1
+
+            is_5g = '5g' in text_lower
+            data_label = 'Unlimited' if is_unlimited else f'{data_gb}GB'
+            name = f'{network or "Unknown"} {data_label}'
+
+            # Dedup key
+            key = (network, price, data_gb, is_unlimited, contract_months)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            # Extract extras/perks
+            extras = []
+            if 'roam' in text_lower:
+                rm = re.search(r'roam[^.]*', text, re.IGNORECASE)
+                if rm:
+                    extras.append(rm.group(0).strip()[:60])
+            if 'price rise' in text_lower or 'no annual' in text_lower:
+                extras.append('No price rise')
+            if 'reward' in text_lower:
+                extras.append('Rewards')
+            if 'exclusive' in text_lower:
+                extras.append('Exclusive')
+
+            plans.append(ScrapedPlan(
+                name=name,
+                price=price,
+                data_gb=data_gb,
+                data_unlimited=is_unlimited,
+                is_5g=is_5g,
+                url=url,
+                contract_months=contract_months,
+                network=network,
+                extras=', '.join(extras) if extras else None,
+            ))
+
+        if not plans:
+            self._log("Article parsing yielded nothing, falling back to regex", "warning")
+            plans = self._extract_from_regex(html, url)
+
+        return plans

@@ -1,102 +1,151 @@
-import re, json, logging
-from typing import List
+"""O2 scraper with anti-bot evasion and tariff card parsing."""
+
+import re
+import logging
 from bs4 import BeautifulSoup
-from .base import BaseScraper, ScrapedPlan
-from .playwright_helper import fetch_page_content
+from .unified_base import UnifiedScraper, ScrapedPlan, extract_contract, extract_network
 
 logger = logging.getLogger(__name__)
 
-class O2Scraper(BaseScraper):
+
+class O2Scraper(UnifiedScraper):
     provider_name = "O2"
     provider_slug = "o2"
     provider_type = "network"
-    base_url = "https://www.o2.co.uk/shop/sim-only"
-    urls = ['https://www.o2.co.uk/shop/sim-only']
+    urls = ['https://www.o2.co.uk/shop/sim-cards/sim-only-deals']
+    use_playwright = True
 
-    async def scrape(self) -> List[ScrapedPlan]:
-        plans = []
-        for url in self.urls:
-            try:
-                html = await fetch_page_content(url, wait_ms=15000)
-                if html and len(html) > 5000:
-                    found = self._parse(html, url)
-                    plans.extend(found)
-                    logger.info(f"O2: Found {len(found)} from {url}")
-            except Exception as e:
-                logger.error(f"O2 error: {e}")
-        return self._dedupe(plans)
+    async def _get_html_playwright(self, url):
+        try:
+            from playwright.async_api import async_playwright
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=['--disable-blink-features=AutomationControlled'],
+                )
+                ctx = await browser.new_context(
+                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    viewport={"width": 1920, "height": 1080},
+                    locale="en-GB",
+                )
+                page = await ctx.new_page()
+                await page.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => false})"
+                )
+                await page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(6000)
 
-    def _parse(self, html: str, url: str) -> List[ScrapedPlan]:
-        plans = []
-        # Try JSON
-        for pat in [r'<script[^>]*id="__NEXT_DATA__"[^>]>(.*?)</script>', r'<script[^>]*type="application/ld.json"[^>]*>(.*?)</script>']:
-            for m in re.finditer(pat, html, re.DOTALL):
-                try:
-                    data = json.loads(m.group(1))
-                    plans.extend(self._walk_json(data, url))
-                except: pass
-        
-        # HTML fallback
-        soup = BeautifulSoup(html, "html.parser")
-        text = soup.get_text(" ")
-        prices = re.findall(r'[££](\d+(?:\.\d+)?)\s*(?:/)?(?:mo|pm|month)', text, re.I)
-        data_vals = re.findall(r'(\d+)\s*GB', text, re.I)
-        has_5g = bool(re.search(r'5G', text))
-        seen = set()
-        data_list = list(data_vals)
-        for ps in prices:
-            price = float(ps)
-            if price < 5 or price > 100 or price in seen: continue
-            seen.add(price)
-            gb = None
-            for d in data_list:
-                v = int(d)
-                if 1 <= v <= 500:
-                    gb = v
-                    data_list.remove(d)
-                    break
-            name = f"O2 {gb}GB" if gb else "O2 Plan"
-            plans.append(ScrapedPlan(name=name, price=price, data_gb=gb, data_unlimited=(gb is None), contract_months=24, url=url, is_5g=has_5g, external_id=f"o2_{price}_{gb or 0}"))
-        return plans
+                # Scroll to load all tariff cards
+                for _ in range(5):
+                    await page.evaluate("window.scrollBy(0, 800)")
+                    await page.wait_for_timeout(1000)
 
-    def _walk_json(self, data, url: str, depth=0) -> List[ScrapedPlan]:
-        if depth > 10: return []
-        plans = []
-        if isinstance(data, dict):
-            price = None
-            for k in ('price', 'monthlyPrice', 'monthlyCost', 'cost'):
-                if k in data:
+                # Click any "show more" or tab buttons
+                for selector in [
+                    'button:has-text("Show more")',
+                    'button:has-text("Load more")',
+                    '[class*="show-more"]',
+                    '[class*="load-more"]',
+                ]:
                     try:
-                        price = float(str(data[k]).replace('£', '').replace('£', ''))
-                        if 0 < price < 200: break
-                    except: pass
-            if price and 0 < price < 200:
-                gb = None
-                unlim = False
-                for k in ('data', 'dataAllowance', 'dataGb'):
-                    if k in data:
-                        val = str(data[k]).lower()
-                        if 'unlimited' in val: unlim = True
-                        else:
-                            mt = re.search(r'(\d+)', val)
-                            if mt: gb = int(mt.group(1))
-                        break
-                is5g = any('5g' in str(v).lower() for v in data.values() if isinstance(v, str))
-                name = data.get('name', f"O2 {gb}GB" if gb else "O2 Unlimited" if unlim else "O2 Plan")
-                plans.append(ScrapedPlan(name=name, price=price, data_gb=gb if not unlim else None, data_unlimited=unlim, contract_months=24, url=url, is_5g=is5g, external_id=f"o2_json_{price}_{gb or 0}"))
-            for v in data.values():
-                plans.extend(self._walk_json(v, url, depth+1))
-        elif isinstance(data, list):
-            for item in data:
-                plans.extend(self._walk_json(item, url, depth+1))
-        return plans
+                        btn = page.locator(selector).first
+                        if await btn.is_visible(timeout=1000):
+                            await btn.click()
+                            await page.wait_for_timeout(2000)
+                            self._log(f"Clicked '{selector}'")
+                    except Exception:
+                        pass
 
-    def _dedupe(self, plans: List[ScrapedPlan]) -> List[ScrapedPlan]:
-        seen = set()
-        out = []
-        for p in plans:
-            k = (p.price, p.data_gb)
-            if k not in seen:
-                seen.add(k)
-                out.append(p)
-        return out
+                # Click through data filter tabs to reveal all plans
+                for tab_text in ['All', 'SIM only']:
+                    try:
+                        tab = page.locator(f'button:has-text("{tab_text}")').first
+                        if await tab.is_visible(timeout=1000):
+                            await tab.click()
+                            await page.wait_for_timeout(2000)
+                    except Exception:
+                        pass
+
+                html = await page.content()
+                await browser.close()
+                self._log(f"Playwright (stealth) got {len(html)} chars from {url}")
+                return html if len(html) > 5000 else None
+        except Exception as e:
+            self._log(f"Playwright error: {e}", "error")
+        return None
+
+    def _extract_from_html(self, html, url):
+        plans = []
+        soup = BeautifulSoup(html, 'html.parser')
+
+        tariff_cards = soup.select('.tariff-card, [class*="tariff-card"]')
+        self._log(f"Found {len(tariff_cards)} tariff-card elements")
+
+        for card in tariff_cards:
+            text = card.get_text(' ', strip=True)
+            if len(text) < 20:
+                continue
+
+            price = None
+            pm = re.search(r'£\s?(\d+(?:\.\d+)?)\s*(?:monthly|/mo|per month|a month)', text, re.IGNORECASE)
+            if not pm:
+                pm = re.search(r'£\s?(\d+(?:\.\d+)?)', text)
+            if pm:
+                price = float(pm.group(1))
+
+            if not price or price < 5 or price > 100:
+                continue
+
+            data_gb = None
+            dm = re.search(r'(\d+)\s*GB', text, re.IGNORECASE)
+            if dm:
+                data_gb = int(dm.group(1))
+                if data_gb > 500:
+                    data_gb = None
+            is_unlimited = not data_gb and 'unlimited' in text.lower()
+            if not data_gb and not is_unlimited:
+                continue
+
+            contract_months = 1
+            cm = re.search(r'(\d+)\s*month\s*contract', text, re.IGNORECASE)
+            if cm:
+                val = int(cm.group(1))
+                if 1 <= val <= 36:
+                    contract_months = val
+
+            is_5g = '5g' in text.lower()
+            data_label = 'Unlimited' if is_unlimited else f'{data_gb}GB'
+
+            # Extract plan tier (Mini Plan, Classic Plan, etc.)
+            tier = ''
+            tier_match = re.search(r'(MINI|CLASSIC|ALL ROUNDER|UNLIMITED)\s*PLAN', text, re.IGNORECASE)
+            if tier_match:
+                tier = ' ' + tier_match.group(1).title()
+
+            name = f'O2{tier} {data_label}'
+
+            extras = []
+            if 'priority' in text.lower():
+                extras.append('Priority')
+            if 'eu roaming' in text.lower() or 'roam' in text.lower():
+                extras.append('EU Roaming')
+
+            plans.append(ScrapedPlan(
+                name=name,
+                price=price,
+                data_gb=data_gb,
+                data_unlimited=is_unlimited,
+                is_5g=is_5g,
+                url=url,
+                contract_months=contract_months,
+                network='O2',
+                extras=', '.join(extras) if extras else None,
+            ))
+
+        if not plans:
+            self._log("Tariff cards yielded nothing, falling back to regex", "warning")
+            plans = self._extract_from_regex(html, url)
+            for p in plans:
+                p.network = 'O2'
+
+        return plans

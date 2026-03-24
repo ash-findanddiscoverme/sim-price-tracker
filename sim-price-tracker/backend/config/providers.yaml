@@ -1,0 +1,159 @@
+# Provider configurations for SIM price tracker
+
+# Network operators (MNOs)
+ee:
+  name: "EE"
+  type: network
+  urls:
+    - https://ee.co.uk/mobile/sim-only-deals
+  rendering: playwright
+  rate_limit: 2
+
+three:
+  name: "Three"
+  type: network
+  urls:
+    - https://www.three.co.uk/shop/sim-only/pay-monthly
+  rendering: playwright
+  rate_limit: 2
+
+vodafone:
+  name: "Vodafone"
+  type: network
+  urls:
+    - https://www.vodafone.co.uk/mobile/best-sim-only-deals
+  rendering: playwright
+  rate_limit: 2
+
+o2:
+  name: "O2"
+  type: network
+  urls:
+    - https://www.o2.co.uk/shop/sim-cards/sim-only-deals
+  rendering: playwright
+  rate_limit: 2
+
+# Mobile Virtual Network Operators (MVNOs)
+giffgaff:
+  name: "giffgaff"
+  type: mvno
+  network_parent: O2
+  urls:
+    - https://www.giffgaff.com/sim-only-plans
+  rendering: httpx
+  rate_limit: 3
+
+voxi:
+  name: "VOXI"
+  type: mvno
+  network_parent: Vodafone
+  urls:
+    - https://www.voxi.co.uk/plans
+  rendering: httpx
+  rate_limit: 3
+
+tesco_mobile:
+  name: "Tesco Mobile"
+  type: mvno
+  network_parent: O2
+  urls:
+    - https://www.tescomobile.com/shop/sim-only
+  rendering: playwright
+  rate_limit: 2
+
+asda_mobile:
+  name: "Asda Mobile"
+  type: mvno
+  network_parent: EE
+  urls:
+    - https://mobile.asda.com/sim-only
+  rendering: playwright
+  rate_limit: 2
+
+id_mobile:
+  name: "iD Mobile"
+  type: mvno
+  network_parent: Three
+  urls:
+    - https://www.idmobile.co.uk/sim-only
+  rendering: httpx
+  rate_limit: 3
+
+lyca_mobile:
+  name: "Lyca Mobile"
+  type: mvno
+  network_parent: O2
+  urls:
+    - https://www.lycamobile.co.uk/en/bundles
+  rendering: httpx
+  rate_limit: 3
+
+talkmobile:
+  name: "Talkmobile"
+  type: mvno
+  network_parent: Vodafone
+  urls:
+    - https://www.talkmobile.co.uk/sim-only-deals
+  rendering: httpx
+  rate_limit: 3
+
+# Affiliate / Comparison sites
+uswitch:
+  name: "uSwitch"
+  type: affiliate
+  base_url: https://www.uswitch.com/mobiles/sim-only-deals/
+  urls:
+    - https://www.uswitch.com/mobiles/sim-only-deals/
+  rendering: playwright
+  rate_limit: 1
+  network_filter_strategy:
+    enabled: true
+    filter_selector: network
+    networks_to_scrape:
+      - name: "EE"
+        filter_value: ee
+      - name: "Three"
+        filter_value: three
+      - name: "Vodafone"
+        filter_value: vodafone
+      - name: "O2"
+        filter_value: o2
+      - name: "giffgaff"
+        filter_value: giffgaff
+      - name: "VOXI"
+        filter_value: voxi
+      - name: "iD Mobile"
+        filter_value: id-mobile
+      - name: "Tesco Mobile"
+        filter_value: tesco-mobile
+
+moneysupermarket:
+  name: "MoneySupermarket"
+  type: affiliate
+  base_url: https://www.moneysupermarket.com/mobile-phones/sim-only/
+  urls:
+    - https://www.moneysupermarket.com/mobile-phones/sim-only/
+  rendering: playwright
+  rate_limit: 1
+  network_filter_strategy:
+    enabled: true
+    filter_selector: provider
+    networks_to_scrape:
+      - name: "EE"
+        filter_value: EE
+      - name: "Three"
+        filter_value: Three
+      - name: "Vodafone"
+        filter_value: Vodafone
+      - name: "O2"
+        filter_value: O2
+      - name: "giffgaff"
+        filter_value: giffgaff
+
+moneysavingexpert:
+  name: "MoneySavingExpert"
+  type: affiliate
+  urls:
+    - https://www.moneysavingexpert.com/cheap-mobile-phones/
+  rendering: httpx
+  rate_limit: 2
