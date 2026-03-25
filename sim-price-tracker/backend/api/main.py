@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import zipfile
+import io
 from datetime import datetime
 from typing import List, Optional
 import os
@@ -7,7 +9,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from db.database import init_db, async_session
 
@@ -55,6 +57,46 @@ async def serve_index():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "time": datetime.utcnow().isoformat()}
+
+
+@app.get("/download-scraper")
+async def download_scraper():
+    """Download the local scraper as a zip file."""
+    scraper_dir = os.path.join(_project_root, "local-scraper")
+    backend_dir = os.path.join(_project_root, "backend")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Add the main scraper script
+        for fname in ["scrape_and_upload.py", "Run Scraper.command", "Run Scraper.bat"]:
+            fpath = os.path.join(scraper_dir, fname)
+            if os.path.exists(fpath):
+                zf.write(fpath, f"sim-price-scraper/{fname}")
+
+        # Add the backend scrapers (needed by the script)
+        for root, dirs, files in os.walk(os.path.join(backend_dir, "scrapers")):
+            # Skip __pycache__
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
+            for f in files:
+                if f.endswith(".py"):
+                    full = os.path.join(root, f)
+                    arc = os.path.relpath(full, backend_dir)
+                    zf.write(full, f"sim-price-scraper/backend/{arc}")
+
+        # Add config files
+        config_dir = os.path.join(backend_dir, "config")
+        if os.path.exists(config_dir):
+            for f in os.listdir(config_dir):
+                fpath = os.path.join(config_dir, f)
+                if os.path.isfile(fpath):
+                    zf.write(fpath, f"sim-price-scraper/backend/config/{f}")
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=sim-price-scraper.zip"},
+    )
 
 
 if __name__ == "__main__":

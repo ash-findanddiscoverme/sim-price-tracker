@@ -33,7 +33,8 @@
             <div class="flex gap-2 items-center">
                 <span id="planCount" class="text-sm"></span>
                 <button onclick="loadData()" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm">Refresh</button>
-                <button id="scrapeBtn" onclick="startScrape()" class="bg-pink-500 hover:bg-pink-600 px-3 py-1 rounded text-sm font-medium">Run Scrape</button>
+                <button onclick="showUploadModal()" class="bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-sm font-medium">Upload Data</button>
+                <a href="/download-scraper" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm no-underline text-white">Download Scraper</a>
             </div>
         </div>
     </header>
@@ -532,8 +533,106 @@
             if (bar) bar.remove();
             if (scrapePolling) { clearInterval(scrapePolling); scrapePolling = null; }
             var btn = document.getElementById('scrapeBtn');
-            btn.textContent = 'Run Scrape';
-            btn.disabled = false;
+            if (btn) { btn.textContent = 'Run Scrape'; btn.disabled = false; }
+        }
+
+        function showUploadModal() {
+            if (document.getElementById('uploadModal')) return;
+            var modal = document.createElement('div');
+            modal.id = 'uploadModal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+            modal.innerHTML =
+                '<div style="background:white;border-radius:12px;padding:32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">' +
+                '<h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#1f2937">Upload Scrape Data</h2>' +
+                '<p style="margin:0 0 20px;color:#6b7280;font-size:14px">Select the JSON file saved by the scraper app</p>' +
+                '<div id="dropZone" style="border:2px dashed #d1d5db;border-radius:8px;padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.2s" ' +
+                'onclick="document.getElementById(\'fileInput\').click()" ' +
+                'ondragover="event.preventDefault();this.style.borderColor=\'#E6007A\';this.style.background=\'#fdf2f8\'" ' +
+                'ondragleave="this.style.borderColor=\'#d1d5db\';this.style.background=\'white\'" ' +
+                'ondrop="handleDrop(event)">' +
+                '<div style="font-size:36px;margin-bottom:8px">&#128196;</div>' +
+                '<p style="margin:0;font-weight:600;color:#374151">Drag & drop your file here</p>' +
+                '<p style="margin:4px 0 0;color:#9ca3af;font-size:13px">or click to browse</p>' +
+                '<input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleFileSelect(this.files[0])">' +
+                '</div>' +
+                '<div id="uploadStatus" style="margin-top:16px;display:none"></div>' +
+                '<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:8px">' +
+                '<button onclick="closeUploadModal()" style="padding:8px 16px;border-radius:6px;border:1px solid #d1d5db;background:white;color:#374151;font-size:14px;cursor:pointer">Cancel</button>' +
+                '</div>' +
+                '</div>';
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function(e) { if (e.target === modal) closeUploadModal(); });
+        }
+
+        function closeUploadModal() {
+            var modal = document.getElementById('uploadModal');
+            if (modal) modal.remove();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            var dropZone = document.getElementById('dropZone');
+            dropZone.style.borderColor = '#d1d5db';
+            dropZone.style.background = 'white';
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        }
+
+        function handleFileSelect(file) {
+            if (!file) return;
+            if (!file.name.endsWith('.json')) {
+                showUploadStatus('Please select a .json file', 'error');
+                return;
+            }
+
+            var dropZone = document.getElementById('dropZone');
+            dropZone.innerHTML = '<div style="color:#002F6C;font-weight:600">&#9989; ' + file.name + '</div>' +
+                '<p style="margin:4px 0 0;color:#6b7280;font-size:13px">' + (file.size / 1024).toFixed(1) + ' KB</p>';
+
+            showUploadStatus('Uploading...', 'loading');
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = JSON.parse(e.target.result);
+                    uploadData(data);
+                } catch (err) {
+                    showUploadStatus('Invalid JSON file: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function uploadData(data) {
+            try {
+                var payload = {
+                    results: data.results || [],
+                    uploaded_by: 'dashboard_upload'
+                };
+                var resp = await fetch(API_BASE + '/api/v1/upload-results', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var result = await resp.json();
+                if (result.status === 'success') {
+                    showUploadStatus('Uploaded ' + result.plans_saved + ' plans from ' + result.providers_saved + ' providers!', 'success');
+                    setTimeout(function() { closeUploadModal(); loadData(); }, 2000);
+                } else {
+                    showUploadStatus('Upload failed: ' + (result.message || 'Unknown error'), 'error');
+                }
+            } catch (err) {
+                showUploadStatus('Upload failed: ' + err.message, 'error');
+            }
+        }
+
+        function showUploadStatus(msg, type) {
+            var el = document.getElementById('uploadStatus');
+            el.style.display = 'block';
+            var color = type === 'success' ? '#10B981' : type === 'error' ? '#EF4444' : '#6b7280';
+            var bg = type === 'success' ? '#ECFDF5' : type === 'error' ? '#FEF2F2' : '#F9FAFB';
+            el.innerHTML = '<div style="padding:10px 14px;border-radius:6px;background:' + bg + ';color:' + color + ';font-size:14px;font-weight:500">' + msg + '</div>';
         }
     </script>
 </body>

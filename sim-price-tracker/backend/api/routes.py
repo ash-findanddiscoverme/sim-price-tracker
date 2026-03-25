@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request
 
 from db.database import async_session
 from db.models import Plan, Provider, PriceSnapshot, ScrapeRun
@@ -303,3 +303,67 @@ async def save_plans(slug: str, name: str, ptype: str, plans):
             db.add(snapshot)
 
         await db.commit()
+
+
+@router.post("/upload-results")
+async def upload_results(request: Request):
+    """Receive scrape results from a local client."""
+    try:
+        body = await request.json()
+        results = body.get("results", [])
+        uploaded_by = body.get("uploaded_by", "unknown")
+
+        if not results:
+            return {"status": "error", "message": "No results provided"}
+
+        total_plans = 0
+        providers_saved = 0
+
+        for provider_data in results:
+            slug = provider_data.get("provider_slug", "")
+            name = provider_data.get("provider_name", "Unknown")
+            ptype = provider_data.get("provider_type", "network")
+            plans_raw = provider_data.get("plans", [])
+
+            if not plans_raw:
+                continue
+
+            from scrapers import ScrapedPlan
+            plans = []
+            for p in plans_raw:
+                plans.append(ScrapedPlan(
+                    name=p.get("name", "Unknown"),
+                    price=p.get("price", 0),
+                    data_gb=p.get("data_gb"),
+                    data_unlimited=p.get("data_unlimited", False),
+                    contract_months=p.get("contract_months", 1),
+                    url=p.get("url", ""),
+                    network=p.get("network"),
+                ))
+
+            await save_plans(slug, name, ptype, plans)
+            total_plans += len(plans)
+            providers_saved += 1
+
+        async with async_session() as db:
+            scrape_run = ScrapeRun(
+                started_at=datetime.utcnow(),
+                completed_at=datetime.utcnow(),
+                status=f"uploaded_by_{uploaded_by}",
+                total_providers=providers_saved,
+                successful_providers=providers_saved,
+                total_plans_found=total_plans,
+            )
+            db.add(scrape_run)
+            await db.commit()
+
+        logger.info(f"Upload from {uploaded_by}: {total_plans} plans from {providers_saved} providers")
+        return {
+            "status": "success",
+            "plans_saved": total_plans,
+            "providers_saved": providers_saved,
+        }
+
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        return {"status": "error", "message": str(e)}
