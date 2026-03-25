@@ -95,32 +95,24 @@ async def download_scraper():
 
 @app.get("/download-scraper/mac")
 async def download_scraper_mac():
-    """Download Mac .app bundle as a zip."""
+    """Download Mac scraper as a zip with .command launcher."""
     scraper_dir = os.path.join(_project_root, "local-scraper")
-    bundle_dir = os.path.join(scraper_dir, "app-bundle")
     backend_dir = os.path.join(_project_root, "backend")
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        app_base = "SIM Price Scraper.app/Contents"
+        base = "SIM Price Scraper"
 
-        # Info.plist
-        plist = os.path.join(bundle_dir, "Info.plist")
-        if os.path.exists(plist):
-            zf.write(plist, f"{app_base}/Info.plist")
+        # Add the .command launcher
+        cmd = os.path.join(scraper_dir, "Run Scraper.command")
+        if os.path.exists(cmd):
+            info = zipfile.ZipInfo(f"{base}/Run Scraper.command")
+            info.external_attr = 0o755 << 16  # Make executable
+            with open(cmd, "rb") as f:
+                zf.writestr(info, f.read())
 
-        # Launcher script
-        run_sh = os.path.join(bundle_dir, "run.sh")
-        if os.path.exists(run_sh):
-            zf.write(run_sh, f"{app_base}/MacOS/run")
-
-        # Add scraper files into Resources/scraper
-        _add_scraper_files(zf, f"{app_base}/Resources/scraper", backend_dir, scraper_dir)
-
-        # Set executable permissions via external_attr
-        for info in zf.infolist():
-            if info.filename.endswith("/MacOS/run"):
-                info.external_attr = 0o755 << 16
+        # Add scraper files
+        _add_scraper_files(zf, base, backend_dir, scraper_dir)
 
     buf.seek(0)
     return StreamingResponse(
