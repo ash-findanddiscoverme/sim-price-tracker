@@ -5,13 +5,12 @@ from typing import Optional, List
 import json
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, 
+    Column, Integer, String, Float, Boolean, DateTime,
     ForeignKey, Text, Index
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy.ext.declarative import declarative_base
 
-Base = declarative_base()
+from .database import Base
 
 
 class Provider(Base):
