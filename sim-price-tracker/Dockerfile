@@ -37,6 +37,7 @@ RUN playwright install chromium
 # Copy application code
 COPY backend/ ./backend/
 COPY static/ ./static/
+COPY local-scraper/ ./local-scraper/
 
 # Create data directory for SQLite
 RUN mkdir -p /app/backend/data
