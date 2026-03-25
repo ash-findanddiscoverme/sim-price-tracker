@@ -197,7 +197,7 @@ async def run_scrape():
             scraper.set_log_callback(lambda msg, lvl="info": log_message(f"  {msg}"))
 
             try:
-                plans = await scraper.scrape()
+                plans = await asyncio.wait_for(scraper.scrape(), timeout=60)
                 plan_count = len(plans) if plans else 0
                 log_message(f"{name}: found {plan_count} plans")
 
@@ -210,6 +210,12 @@ async def run_scrape():
                 scrape_state["completed"] += 1
                 return plan_count
 
+            except asyncio.TimeoutError:
+                err = f"{name}: timed out after 60s"
+                log_message(err, "error")
+                scrape_state["errors"].append(err)
+                scrape_state["completed"] += 1
+                return 0
             except Exception as e:
                 err = f"{name}: {str(e)[:200]}"
                 log_message(err, "error")

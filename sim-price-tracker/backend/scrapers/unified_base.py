@@ -9,6 +9,9 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+# Disable Playwright on cloud/low-memory environments
+PLAYWRIGHT_ENABLED = os.environ.get("PLAYWRIGHT_ENABLED", "true").lower() == "true"
+
 
 @dataclass
 class ScrapedPlan:
@@ -114,6 +117,9 @@ class UnifiedScraper:
         return None
 
     async def _get_html_playwright(self, url):
+        if not PLAYWRIGHT_ENABLED:
+            self._log("Playwright disabled (set PLAYWRIGHT_ENABLED=true to enable)", "warning")
+            return None
         try:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:
