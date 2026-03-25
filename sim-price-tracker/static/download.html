@@ -26,28 +26,14 @@
             <p class="text-gray-500">Download and run the scraper on your computer to collect the latest SIM deal prices</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-            <!-- Mac -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center hover:shadow-md transition-shadow">
-                <div class="text-5xl mb-4">&#63743;</div>
-                <h2 class="text-xl font-semibold text-gray-900 mb-1">Mac</h2>
-                <p class="text-sm text-gray-500 mb-6">macOS 10.15 or later</p>
-                <a href="/download-scraper/mac"
-                   class="inline-block text-white px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-colors no-underline" style="background:#001687">
-                    Download for Mac
-                </a>
-            </div>
-
-            <!-- Windows -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center hover:shadow-md transition-shadow">
-                <div class="text-5xl mb-4">&#128187;</div>
-                <h2 class="text-xl font-semibold text-gray-900 mb-1">Windows</h2>
-                <p class="text-sm text-gray-500 mb-6">Windows 10 or later</p>
-                <a href="/download-scraper/windows"
-                   class="inline-block text-white px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-colors no-underline" style="background:#0050ff">
-                    Download for Windows
-                </a>
-            </div>
+        <!-- Single download button -->
+        <div class="text-center mb-10">
+            <a href="/download-scraper/download"
+               class="inline-block text-white px-8 py-4 rounded-xl font-medium text-lg hover:opacity-90 transition-all hover:shadow-lg no-underline"
+               style="background: linear-gradient(135deg, #001687, #0050ff);">
+                Download Scraper
+            </a>
+            <p class="text-sm text-gray-400 mt-3">Works on Mac and Windows</p>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -57,24 +43,41 @@
                     <div class="flex-shrink-0 w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-sm" style="background:#5f2878">1</div>
                     <div>
                         <p class="font-medium text-gray-900">Download & unzip</p>
-                        <p class="text-sm text-gray-500">Download the zip for your platform and unzip it. <strong>Windows:</strong> Then double-click "Install SIM Scraper" to set up a Desktop shortcut.</p>
+                        <p class="text-sm text-gray-500">Click the button above. Your browser will download a zip file — unzip it to get the <strong>SIM Price Scraper</strong> folder.</p>
                     </div>
                 </div>
                 <div class="flex gap-3">
                     <div class="flex-shrink-0 w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-sm" style="background:#5f2878">2</div>
                     <div>
-                        <p class="font-medium text-gray-900">Run the scraper</p>
-                        <p class="text-sm text-gray-500"><strong>Mac:</strong> Double-click "Run Scraper" in the unzipped folder. <strong>Windows:</strong> Double-click "SIM Price Scraper" on your Desktop. First run auto-installs Python if needed.</p>
+                        <p class="font-medium text-gray-900">Open the scraper</p>
+                        <p class="text-sm text-gray-500">
+                            <strong>Mac:</strong> Double-click <code class="bg-gray-100 px-1 rounded">Run Scraper.command</code><br>
+                            <strong>Windows:</strong> Double-click <code class="bg-gray-100 px-1 rounded">Run Scraper.bat</code><br>
+                            A browser window will open with the scraper interface. First run will auto-install Python if needed.
+                        </p>
                     </div>
                 </div>
                 <div class="flex gap-3">
                     <div class="flex-shrink-0 w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-sm" style="background:#5f2878">3</div>
                     <div>
+                        <p class="font-medium text-gray-900">Click "Run Scraper"</p>
+                        <p class="text-sm text-gray-500">In the browser interface, click the <strong>Run Scraper</strong> button. You'll see live progress as it scrapes all UK mobile providers. This usually takes 2–5 minutes.</p>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <div class="flex-shrink-0 w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-sm" style="background:#5f2878">4</div>
+                    <div>
                         <p class="font-medium text-gray-900">Upload the results</p>
-                        <p class="text-sm text-gray-500">The scraper saves a file to your Desktop. Come back here, click <strong>"Upload Data"</strong> in the dashboard, and select the file.</p>
+                        <p class="text-sm text-gray-500">When it finishes, a data file is saved to your Desktop. Come back here, click <strong>"Upload Data"</strong> in the dashboard, and select the file.</p>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mt-6">
+            <p class="text-sm text-blue-800">
+                <strong>Note:</strong> The scraper requires Python 3 to run. If you don't have it, the launcher will offer to install it automatically — just follow the prompts.
+            </p>
         </div>
 
         <div class="text-center mt-8">

@@ -65,8 +65,7 @@ echo   Creating desktop shortcut...
 echo @echo off
 echo title SIM Price Scraper
 echo cd /d "%INSTALL_DIR%"
-echo python scrape_and_upload.py
-echo pause
+echo python scraper_server.py
 ) > "%INSTALL_DIR%\Launch Scraper.bat"
 
 :: Create desktop shortcut using PowerShell

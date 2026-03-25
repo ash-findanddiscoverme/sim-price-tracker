@@ -1,10 +1,10 @@
 @echo off
-title SIM Price Tracker - Local Scraper
+title SIM Price Scraper
 cd /d "%~dp0"
 
 echo.
 echo ============================================
-echo   SIM Price Tracker - Local Scraper
+echo   SIM Price Scraper
 echo ============================================
 echo.
 
@@ -13,7 +13,10 @@ python --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo   Python found.
     echo.
-    python scrape_and_upload.py
+    echo   Starting scraper... your browser will open shortly.
+    echo   Close this window when you're done.
+    echo.
+    python scraper_server.py
     goto :end
 )
 
@@ -21,7 +24,10 @@ python3 --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo   Python found.
     echo.
-    python3 scrape_and_upload.py
+    echo   Starting scraper... your browser will open shortly.
+    echo   Close this window when you're done.
+    echo.
+    python3 scraper_server.py
     goto :end
 )
 

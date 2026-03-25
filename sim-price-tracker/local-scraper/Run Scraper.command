@@ -1,10 +1,10 @@
 #!/bin/bash
-# SIM Price Tracker - Double-click to run!
+# SIM Price Scraper - Double-click to run!
 cd "$(dirname "$0")"
 
 echo ""
 echo "============================================"
-echo "  SIM Price Tracker - Local Scraper"
+echo "  SIM Price Scraper"
 echo "============================================"
 echo ""
 
@@ -12,7 +12,10 @@ echo ""
 if command -v python3 &> /dev/null; then
     echo "  Python found: $(python3 --version)"
     echo ""
-    python3 scrape_and_upload.py
+    echo "  Starting scraper... your browser will open shortly."
+    echo "  Close this window when you're done."
+    echo ""
+    python3 scraper_server.py
 else
     echo "  Python 3 is not installed."
     echo ""
@@ -20,7 +23,6 @@ else
     read -r answer
     if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
         echo ""
-        # Check if Homebrew is installed
         if command -v brew &> /dev/null; then
             echo "  Installing Python via Homebrew..."
             brew install python3
@@ -36,8 +38,9 @@ else
         if command -v python3 &> /dev/null; then
             echo ""
             echo "  Python installed successfully!"
+            echo "  Starting scraper..."
             echo ""
-            python3 scrape_and_upload.py
+            python3 scraper_server.py
         else
             echo ""
             echo "  Installation had an issue. Please install Python manually:"

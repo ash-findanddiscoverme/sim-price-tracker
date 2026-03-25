@@ -66,7 +66,12 @@ async def health_check():
 
 def _add_scraper_files(zf, prefix, backend_dir, scraper_dir):
     """Add the Python scraper and backend files to a zip."""
-    # Main scraper script
+    # Web UI server (primary entry point)
+    server_script = os.path.join(scraper_dir, "scraper_server.py")
+    if os.path.exists(server_script):
+        zf.write(server_script, f"{prefix}/scraper_server.py")
+
+    # CLI scraper (backup / used by server)
     main_script = os.path.join(scraper_dir, "scrape_and_upload.py")
     if os.path.exists(main_script):
         zf.write(main_script, f"{prefix}/scrape_and_upload.py")
@@ -98,9 +103,9 @@ async def download_scraper():
     )
 
 
-@app.get("/download-scraper/mac")
-async def download_scraper_mac():
-    """Download Mac scraper as a zip with .command launcher."""
+@app.get("/download-scraper/download")
+async def download_scraper_universal():
+    """Download universal scraper zip that works on both Mac and Windows."""
     scraper_dir = os.path.join(_project_root, "local-scraper")
     backend_dir = os.path.join(_project_root, "backend")
 
@@ -108,49 +113,32 @@ async def download_scraper_mac():
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         base = "SIM Price Scraper"
 
-        # Add the .command launcher
+        # Mac launcher (.command) – needs executable permission
         cmd = os.path.join(scraper_dir, "Run Scraper.command")
         if os.path.exists(cmd):
             info = zipfile.ZipInfo(f"{base}/Run Scraper.command")
-            info.external_attr = 0o755 << 16  # Make executable
+            info.external_attr = 0o755 << 16
             with open(cmd, "rb") as f:
                 zf.writestr(info, f.read())
 
-        # Add scraper files
+        # Windows launcher (.bat)
+        bat = os.path.join(scraper_dir, "Run Scraper.bat")
+        if os.path.exists(bat):
+            zf.write(bat, f"{base}/Run Scraper.bat")
+
+        # HTML entry point
+        html = os.path.join(scraper_dir, "Open Scraper.html")
+        if os.path.exists(html):
+            zf.write(html, f"{base}/Open Scraper.html")
+
+        # Add scraper + backend files
         _add_scraper_files(zf, base, backend_dir, scraper_dir)
 
     buf.seek(0)
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=SIM-Price-Scraper-Mac.zip"},
-    )
-
-
-@app.get("/download-scraper/windows")
-async def download_scraper_windows():
-    """Download Windows installer as a zip."""
-    scraper_dir = os.path.join(_project_root, "local-scraper")
-    bundle_dir = os.path.join(scraper_dir, "app-bundle")
-    backend_dir = os.path.join(_project_root, "backend")
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        base = "SIM Price Scraper"
-
-        # Installer
-        installer = os.path.join(bundle_dir, "Install SIM Scraper.bat")
-        if os.path.exists(installer):
-            zf.write(installer, f"{base}/Install SIM Scraper.bat")
-
-        # Add scraper files into scraper subfolder
-        _add_scraper_files(zf, f"{base}/scraper", backend_dir, scraper_dir)
-
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=SIM-Price-Scraper-Windows.zip"},
+        headers={"Content-Disposition": "attachment; filename=SIM-Price-Scraper.zip"},
     )
 
 
