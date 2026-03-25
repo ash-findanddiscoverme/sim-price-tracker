@@ -7,15 +7,24 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .gradient-header { background: linear-gradient(135deg, #002F6C 0%, #E6007A 100%); color: white; padding: 16px 24px; }
-        .o2-badge { background: #002F6C; }
-        .selected-row { background-color: #EFF6FF !important; border-left: 4px solid #002F6C; }
-        .price-up { color: #EF4444; }
+        /* Place on-air-momentum font files in /static/fonts/ and uncomment:
+        @font-face {
+            font-family: 'on-air-momentum';
+            src: url('/fonts/on-air-momentum.woff2') format('woff2'),
+                 url('/fonts/on-air-momentum.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+        */
+        .gradient-header { background: linear-gradient(135deg, #001687 0%, #0050ff 50%, #ed0100 100%); color: white; padding: 16px 24px; }
+        .o2-badge { background: #001687; }
+        .selected-row { background-color: #e8efff !important; border-left: 4px solid #0050ff; }
+        .price-up { color: #ed0100; }
         .price-down { color: #10B981; }
         #plansTable tr:hover { background: #f9fafb; }
-        #plansTable tr.selected { background: #EFF6FF; border-left: 4px solid #002F6C; }
+        #plansTable tr.selected { background: #e8efff; border-left: 4px solid #0050ff; }
         #plansTable tr { cursor: pointer; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f9fafb; }
+        body { font-family: 'on-air-momentum', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f9fafb; }
         table { border-collapse: collapse; width: 100%; }
         th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; }
         th { background: #f3f4f6; font-weight: 600; font-size: 13px; color: #4b5563; }
@@ -33,7 +42,7 @@
             <div class="flex gap-2 items-center">
                 <span id="planCount" class="text-sm"></span>
                 <button onclick="loadData()" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm">Refresh</button>
-                <button onclick="showUploadModal()" class="bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-sm font-medium">Upload Data</button>
+                <button onclick="showUploadModal()" style="background:#5f2878" class="hover:opacity-90 px-3 py-1 rounded text-sm font-medium text-white">Upload Data</button>
                 <a href="/download-scraper" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm no-underline text-white">Download Scraper</a>
             </div>
         </div>
@@ -118,7 +127,7 @@
             </div>
 
             <div class="bg-white rounded-lg shadow">
-                <div class="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-900 to-blue-700 text-white rounded-t-lg">
+                <div class="p-4 border-b border-gray-200 text-white rounded-t-lg" style="background:linear-gradient(135deg, #001687, #0050ff)">
                     <h3 class="text-lg font-semibold">O2 Comparison</h3>
                     <p class="text-sm opacity-80">Select a plan to compare</p>
                 </div>
@@ -333,7 +342,7 @@
 
             var o2Price = closestO2.current_price || closestO2.price || 0;
             var priceDiff = o2Price - planPrice;
-            var diffColor = priceDiff > 0 ? '#EF4444' : (priceDiff < 0 ? '#10B981' : '#999');
+            var diffColor = priceDiff > 0 ? '#ed0100' : (priceDiff < 0 ? '#10B981' : '#999');
             var diffLabel = priceDiff > 0 ? ('+&pound;' + priceDiff.toFixed(2) + ' more') :
                            (priceDiff < 0 ? ('&pound;' + Math.abs(priceDiff).toFixed(2) + ' less') : 'Same price');
             var o2DataStr = closestO2.data_unlimited ? 'Unlimited' : (closestO2.data_gb || '?') + ' GB';
@@ -342,7 +351,7 @@
                 '<div class="text-center text-2xl text-gray-300 my-2">&#8595;</div>' +
                 '<div class="p-3 bg-blue-50 rounded-lg border-2 border-blue-200">' +
                 '<div class="flex items-center gap-2 mb-2">' +
-                '<span class="bg-blue-900 text-white px-2 py-0.5 rounded text-xs font-bold">O2</span>' +
+                '<span style="background:#001687" class="text-white px-2 py-0.5 rounded text-xs font-bold">O2</span>' +
                 '<span class="text-xs text-gray-400">Closest Match</span>' +
                 '</div>' +
                 '<p class="font-semibold">' + (closestO2.name || 'O2 Plan') + '</p>' +
@@ -392,8 +401,8 @@
                             datasets: [{
                                 label: 'Price',
                                 data: prices,
-                                borderColor: '#002F6C',
-                                backgroundColor: 'rgba(0, 47, 108, 0.1)',
+                                borderColor: '#0050ff',
+                                backgroundColor: 'rgba(0, 80, 255, 0.1)',
                                 fill: true,
                                 tension: 0.3
                             }]
@@ -415,7 +424,7 @@
             });
             var nets = Object.keys(networkPrices).sort();
             var avgs = nets.map(function(n) { return networkPrices[n].reduce(function(a, b) { return a + b; }, 0) / networkPrices[n].length; });
-            var colors = ['#002F6C', '#E6007A', '#10B981', '#F59E0B', '#6366F1', '#EC4689', '#14B8A6', '#8B5CF6'];
+            var colors = ['#0050ff', '#ed0100', '#5f2878', '#001687', '#10B981', '#F59E0B', '#0050ff', '#5f2878'];
 
             if (priceDistChart) priceDistChart.destroy();
             priceDistChart = new Chart(document.getElementById('priceDistChart'), {
@@ -443,7 +452,7 @@
             if (dataVsPriceChart) dataVsPriceChart.destroy();
             dataVsPriceChart = new Chart(document.getElementById('dataVsPriceChart'), {
                 type: 'bar',
-                data: { labels: catLabels, datasets: [{ data: catAvgs, backgroundColor: '#E6007A' }] },
+                data: { labels: catLabels, datasets: [{ data: catAvgs, backgroundColor: '#5f2878' }] },
                 options: { responsive: true, plugins: { legend: { display: false } } }
             });
         }
@@ -482,10 +491,10 @@
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
                 '<span style="font-weight:700;font-size:14px">Scrape In Progress</span>' +
                 '<div><span id="scrapeStats" style="font-size:12px;opacity:0.8"></span>' +
-                '<button onclick="closeScrapeBar()" style="margin-left:12px;background:#EF4444;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">Close</button>' +
+                '<button onclick="closeScrapeBar()" style="margin-left:12px;background:#ed0100;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">Close</button>' +
                 '</div></div>' +
                 '<div style="background:#374151;border-radius:4px;height:6px;margin-bottom:8px">' +
-                '<div id="scrapeBar" style="height:100%;background:linear-gradient(90deg,#002F6C,#E6007A);border-radius:4px;transition:width 0.3s;width:0%"></div>' +
+                '<div id="scrapeBar" style="height:100%;background:linear-gradient(90deg,#001687,#0050ff);border-radius:4px;transition:width 0.3s;width:0%"></div>' +
                 '</div>' +
                 '<div id="scrapeLogs" style="font-size:11px;line-height:1.6;max-height:20vh;overflow-y:auto;opacity:0.9"></div>';
             document.body.appendChild(container);
@@ -547,7 +556,7 @@
                 '<p style="margin:0 0 20px;color:#6b7280;font-size:14px">Select the JSON file saved by the scraper app</p>' +
                 '<div id="dropZone" style="border:2px dashed #d1d5db;border-radius:8px;padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.2s" ' +
                 'onclick="document.getElementById(\'fileInput\').click()" ' +
-                'ondragover="event.preventDefault();this.style.borderColor=\'#E6007A\';this.style.background=\'#fdf2f8\'" ' +
+                'ondragover="event.preventDefault();this.style.borderColor=\'#0050ff\';this.style.background=\'#e8efff\'" ' +
                 'ondragleave="this.style.borderColor=\'#d1d5db\';this.style.background=\'white\'" ' +
                 'ondrop="handleDrop(event)">' +
                 '<div style="font-size:36px;margin-bottom:8px">&#128196;</div>' +
@@ -587,7 +596,7 @@
             }
 
             var dropZone = document.getElementById('dropZone');
-            dropZone.innerHTML = '<div style="color:#002F6C;font-weight:600">&#9989; ' + file.name + '</div>' +
+            dropZone.innerHTML = '<div style="color:#0050ff;font-weight:600">&#9989; ' + file.name + '</div>' +
                 '<p style="margin:4px 0 0;color:#6b7280;font-size:13px">' + (file.size / 1024).toFixed(1) + ' KB</p>';
 
             showUploadStatus('Uploading...', 'loading');
