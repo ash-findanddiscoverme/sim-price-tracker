@@ -54,6 +54,11 @@ async def serve_index():
     return {"message": "SIM Price Tracker API", "version": "2.0", "docs": "/docs"}
 
 
+@app.get("/favicon.svg")
+async def serve_favicon():
+    return FileResponse(os.path.join(static_dir, "favicon.svg"), media_type="image/svg+xml")
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "time": datetime.utcnow().isoformat()}
