@@ -3,647 +3,900 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIM Price Tracker - Analytics</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>SIM Price Tracker</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Place on-air-momentum font files in /static/fonts/ and uncomment:
-        @font-face {
-            font-family: 'on-air-momentum';
-            src: url('/fonts/on-air-momentum.woff2') format('woff2'),
-                 url('/fonts/on-air-momentum.woff') format('woff');
-            font-weight: normal;
-            font-style: normal;
-        }
-        */
-        .gradient-header { background: linear-gradient(135deg, #001687 0%, #0050ff 50%, #ed0100 100%); color: white; padding: 16px 24px; }
-        .o2-badge { background: #001687; }
-        .selected-row { background-color: #e8efff !important; border-left: 4px solid #0050ff; }
-        .price-up { color: #ed0100; }
-        .price-down { color: #10B981; }
-        #plansTable tr:hover { background: #f9fafb; }
-        #plansTable tr.selected { background: #e8efff; border-left: 4px solid #0050ff; }
-        #plansTable tr { cursor: pointer; }
-        body { font-family: 'on-air-momentum', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f9fafb; }
+        .gradient-header { background: #0050ff; color: white; padding: 16px 24px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f8f9fb; }
         table { border-collapse: collapse; width: 100%; }
-        th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; }
-        th { background: #f3f4f6; font-weight: 600; font-size: 13px; color: #4b5563; }
-        select, input { padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
+        th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+        th { background: #f3f4f6; font-weight: 600; color: #4b5563; position: sticky; top: 0; z-index: 1; cursor: pointer; }
+        th:hover { background: #e5e7eb; }
         button { cursor: pointer; border: none; padding: 6px 12px; border-radius: 6px; }
+        #plansTable tr:hover { background: #f0f4ff; }
+        #plansTable tr.sel { background: #EFF6FF; border-left: 4px solid #0050ff; }
+        #plansTable tr { cursor: pointer; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; }
+        .badge-d { background: #DBEAFE; color: #1E40AF; }
+        .badge-a { background: #FEF3C7; color: #92400E; }
+        .net-mno { color: #7C3AED; font-weight: 600; }
+        .net-o2 { color: #0050ff; font-weight: 700; }
+        .net-mvno { color: #1F2937; font-weight: 500; }
+        .star { color: #F59E0B; font-size: 11px; letter-spacing: -1px; }
+        .dl { color: #2563EB; text-decoration: none; font-size: 12px; }
+        .dl:hover { text-decoration: underline; }
+        select, input[type="number"] { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; width: 100%; }
+        .fl { font-size: 11px; font-weight: 600; color: #374151; margin-bottom: 4px; display: block; }
+        .ms-dropdown { position: relative; }
+        .ms-btn { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; cursor: pointer; background: white; min-height: 34px; width: 100%; }
+        .ms-btn:hover { border-color: #9CA3AF; }
+        .ms-panel { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 100; max-height: 320px; overflow-y: auto; display: none; margin-top: 4px; }
+        .ms-panel.open { display: block; }
+        .ms-group { padding: 4px 0; }
+        .ms-group-label { padding: 6px 12px; font-size: 10px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; background: #f9fafb; }
+        .ms-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: 12px; }
+        .ms-item:hover { background: #EFF6FF; }
+        .ms-item input { width: 14px; height: 14px; accent-color: #0050ff; }
+        .ms-actions { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid #e5e7eb; }
+        .ms-actions button { font-size: 11px; padding: 4px 10px; background: #f3f4f6; color: #374151; border-radius: 4px; }
+        .ms-actions button:hover { background: #e5e7eb; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <header class="gradient-header text-white py-4 px-6 shadow-lg">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div>
-                <h1 class="text-xl font-bold">SIM Price Tracker</h1>
-                <p class="text-sm opacity-80">Analytics Dashboard</p>
-            </div>
-            <div class="flex gap-2 items-center">
-                <span id="planCount" class="text-sm"></span>
-                <button onclick="loadData()" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm">Refresh</button>
-                <button onclick="showUploadModal()" style="background:#5f2878" class="hover:opacity-90 px-3 py-1 rounded text-sm font-medium text-white">Upload Data</button>
-                <a href="/download-scraper" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm no-underline text-white">Download Scraper</a>
+<body>
+    <header class="gradient-header shadow-lg">
+        <div style="max-width:1280px;margin:0 auto;display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:14px"><img src="/o2-logo.png" alt="O2" style="height:36px;width:auto"><div><h1 style="margin:0;font-size:20px;font-weight:700">SIM Price Tracker</h1><p style="margin:2px 0 0 0;font-size:13px;opacity:0.8">Analytics Dashboard</p></div></div>
+            <div style="display:flex;gap:10px;align-items:center">
+                <span id="planCount" style="font-size:13px;background:rgba(255,255,255,0.15);padding:4px 12px;border-radius:20px"></span>
+                <button onclick="loadData()" style="background:rgba(255,255,255,0.15);color:white;font-size:12px;padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);display:flex;align-items:center;gap:6px;transition:all 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#8635; Refresh</button>
+                <button id="scrapeBtn" onclick="startScrape()" style="background:#E6007A;color:white;font-size:12px;font-weight:600;padding:8px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(230,0,122,0.3);transition:all 0.2s" onmouseover="this.style.background='#C70068'" onmouseout="this.style.background='#E6007A'">&#9654; Run Scrape</button>
             </div>
         </div>
     </header>
-
-    <main class="max-w-7xl mx-auto px-4 py-6">
-        <div class="bg-white rounded-lg shadow p-4 mb-6">
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <main style="max-width:1280px;margin:0 auto;padding:20px 16px">
+        <!-- Filters -->
+        <div style="background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);padding:16px;margin-bottom:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <span style="font-size:13px;font-weight:600;color:#1F2937">Filters</span>
+                <button onclick="clearFilters()" style="font-size:11px;color:#6B7280;background:#F3F4F6;padding:4px 10px">Clear all</button>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:12px">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Network</label>
-                    <select id="filterNetwork" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
-                        <option value="">All Networks</option>
-                    </select>
+                    <label class="fl">Network</label>
+                    <div class="ms-dropdown" id="netDropdown">
+                        <div class="ms-btn" onclick="toggleDropdown('netDropdown')">
+                            <span id="netLabel">All Networks</span>
+                            <span style="font-size:10px;color:#9CA3AF">&#9660;</span>
+                        </div>
+                        <div class="ms-panel" id="netPanel"></div>
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Data</label>
-                    <select id="filterData" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
+                    <label class="fl">Source</label>
+                    <div style="display:flex;gap:6px">
+                        <button id="srcDirect" onclick="toggleSource('Direct')" style="flex:1;padding:6px 10px;font-size:11px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:#0050ff;color:white;transition:all 0.15s">Direct</button>
+                        <button id="srcAffiliate" onclick="toggleSource('Affiliate')" style="flex:1;padding:6px 10px;font-size:11px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:#0050ff;color:white;transition:all 0.15s">Affiliate</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="fl">Data</label>
+                    <select id="filterData" onchange="applyFilters()">
                         <option value="">All Data</option>
-                        <option value="1-5">1-5 GB</option>
-                        <option value="6-15">6-15 GB</option>
-                        <option value="16-50">16-50 GB</option>
-                        <option value="51-100">51-100 GB</option>
-                        <option value="101+">100+ GB</option>
+                        <option value="0-4">&lt;5 GB</option>
+                        <option value="5-19">5 - &lt;20 GB</option>
+                        <option value="20-49">20 - &lt;50 GB</option>
+                        <option value="50-99">50 - &lt;100 GB</option>
+                        <option value="100-9998">100 GB+</option>
                         <option value="unlimited">Unlimited</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Contract</label>
-                    <select id="filterContract" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
-                        <option value="">All Lengths</option>
+                    <label class="fl">Contract</label>
+                    <select id="filterContract" onchange="applyFilters()">
+                        <option value="">All</option>
                         <option value="1">1 Month</option>
                         <option value="12">12 Months</option>
+                        <option value="18">18 Months</option>
                         <option value="24">24 Months</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Price</label>
-                    <input type="number" id="filterMaxPrice" placeholder="50" oninput="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Source</label>
-                    <select id="filterSource" onchange="applyFilters()" class="w-full rounded-md border-gray-300 p-2 border">
-                        <option value="">All Sources</option>
-                    </select>
+                    <label class="fl">Max Price</label>
+                    <input type="number" id="filterMaxPrice" placeholder="No limit" oninput="applyFilters()">
                 </div>
             </div>
         </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Price Distribution by Network</h3>
-                <canvas id="priceDistChart" height="200"></canvas>
+        <!-- Charts -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+            <div style="background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);padding:16px">
+                <h3 style="font-size:13px;font-weight:600;color:#1F2937;margin:0 0 4px 0">Price Distribution by Network</h3>
+                <div style="font-size:10px;color:#6B7280;margin-bottom:8px"><span style="color:#10B981">&#9679;</span> Below avg &nbsp;<span style="color:#EF4444">&#9679;</span> Above avg &nbsp;<span style="color:#0050ff;font-weight:700">&mdash;</span> Network avg &nbsp;|&nbsp; <span style="color:#0050ff;font-weight:700">O2</span> &nbsp;<span style="color:#7C3AED;font-weight:600">MNO</span> &nbsp;<span style="color:#1F2937">MVNO</span></div>
+                <div style="position:relative"><canvas id="priceDistChart" height="260"></canvas><div id="dotTooltip" style="display:none;position:absolute;pointer-events:none;background:#1F2937;color:white;padding:8px 12px;border-radius:8px;font-size:11px;line-height:1.5;box-shadow:0 4px 12px rgba(0,0,0,0.25);z-index:50;white-space:nowrap"></div></div>
             </div>
-            <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Average Price by Data Amount</h3>
-                <canvas id="dataVsPriceChart" height="200"></canvas>
+            <div style="background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);padding:16px">
+                <h3 style="font-size:13px;font-weight:600;color:#1F2937;margin:0 0 12px 0">Average Price by Data</h3>
+                <canvas id="dataVsPriceChart" height="240"></canvas>
             </div>
         </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 bg-white rounded-lg shadow">
-                <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-semibold text-gray-800">SIM Plans</h3>
-                    <span id="filteredCount" class="text-sm text-gray-500"></span>
+        <!-- Table + O2 -->
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+            <div style="background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+                <div style="padding:10px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+                    <h3 style="font-size:13px;font-weight:600;color:#1F2937;margin:0">SIM Plans</h3>
+                    <span id="filteredCount" style="font-size:11px;color:#6B7280"></span>
                 </div>
-                <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('network')">Network</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('name')">Plan</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('price')">Price</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortTable('data')">Data</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Contract</th>
-                            </tr>
-                        </thead>
-                        <tbody id="plansTable" class="divide-y divide-gray-100">
-                            <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Loading plans...</td></tr>
-                        </tbody>
+                <div style="overflow-x:auto;max-height:520px;overflow-y:auto">
+                    <table><thead><tr>
+                        <th onclick="sortTable('network')">Network</th>
+                        <th onclick="sortTable('name')">Plan</th>
+                        <th onclick="sortTable('price')">Price</th>
+                        <th onclick="sortTable('data')">Data</th>
+                        <th>Contract</th>
+                        <th onclick="sortTable('visibility')" title="Prominence on source site">Visibility</th>
+                        <th>Source</th>
+                        <th>Deal</th>
+                    </tr></thead>
+                    <tbody id="plansTable"><tr><td colspan="8" style="padding:32px;text-align:center;color:#9CA3AF">Loading...</td></tr></tbody>
                     </table>
                 </div>
             </div>
-
-            <div class="bg-white rounded-lg shadow">
-                <div class="p-4 border-b border-gray-200 text-white rounded-t-lg" style="background:linear-gradient(135deg, #001687, #0050ff)">
-                    <h3 class="text-lg font-semibold">O2 Comparison</h3>
-                    <p class="text-sm opacity-80">Select a plan to compare</p>
+            <div style="background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+                <div style="padding:10px 16px;background:#0050ff;color:white;border-radius:8px 8px 0 0">
+                    <h3 style="font-size:13px;font-weight:600;margin:0">O2 Comparison</h3>
+                    <p style="font-size:11px;opacity:0.8;margin:2px 0 0 0">Select a plan to compare</p>
                 </div>
-                <div id="o2ComparePanel" class="p-4">
-                    <p class="text-gray-500 text-sm text-center py-8">Click on any plan to see the closest O2 equivalent</p>
-                </div>
+                <div id="o2Panel" style="padding:16px"><p style="color:#9CA3AF;text-align:center;padding:16px 0;font-size:12px">Click any plan to compare</p></div>
             </div>
         </div>
+        <!-- Competitive Ranking Tables -->
+        <div style="margin-top:20px;background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+            <div style="padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+                <div>
+                    <h3 id="rankTitle" style="font-size:14px;font-weight:700;color:#1F2937;margin:0">Competitor Ranking vs O2</h3>
+                    <p id="rankSubtitle" style="font-size:11px;color:#6B7280;margin:2px 0 0 0">Cheapest deal per provider in each data bracket &mdash; variance shows price difference to O2</p>
+                </div>
+                <div style="display:flex;gap:12px;align-items:center">
+                    <div style="display:flex;gap:4px;align-items:center">
+                        <label style="font-size:11px;color:#6B7280">Source:</label>
+                        <select id="rankSource" onchange="buildRankTables()" style="font-size:11px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px">
+                            <option value="all">All</option>
+                            <option value="Direct" selected>Direct only</option>
+                            <option value="Affiliate">Affiliate only</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;gap:4px;align-items:center">
+                        <label style="font-size:11px;color:#6B7280">Type:</label>
+                        <select id="rankType" onchange="buildRankTables()" style="font-size:11px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px">
+                            <option value="all" selected>All</option>
+                            <option value="MNO">MNO only</option>
+                            <option value="MVNO">MVNO only</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="rankTables" style="padding:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px"></div>
+        </div>
 
-        <div id="priceHistorySection" class="mt-6 bg-white rounded-lg shadow" style="display:none">
-            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-gray-800">Price History</h3>
-                <span id="selectedPlanName" class="text-sm text-gray-500"></span>
+        <!-- History -->
+        <div id="histSection" style="margin-top:20px;background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);display:none">
+            <div style="padding:10px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+                <h3 style="font-size:13px;font-weight:600;color:#1F2937;margin:0">Price History</h3>
+                <span id="histName" style="font-size:11px;color:#6B7280"></span>
             </div>
-            <div class="p-4">
-                <canvas id="priceHistoryChart" height="120"></canvas>
-            </div>
+            <div style="padding:16px"><canvas id="histChart" height="100"></canvas></div>
         </div>
     </main>
-
     <script>
-        var allPlans = [];
-        var filteredPlans = [];
-        var selectedPlan = null;
-        var o2Plans = [];
-        var priceDistChart = null;
-        var dataVsPriceChart = null;
-        var priceHistoryChart = null;
-        var sortColumn = 'price';
-        var sortAsc = true;
-        var scrapePolling = null;
-        var API_BASE = window.location.origin;
+    var allPlans=[],filteredPlans=[],selPlan=null,o2Plans=[];
+    var c1=null,c2=null,c3=null,sortCol='price',sortAsc=true,pollId=null;
+    var API=window.location.origin;
+    var MNOS=['O2','EE','Vodafone','Three'];
+    var srcActive={Direct:true,Affiliate:true};
 
-        document.addEventListener('DOMContentLoaded', loadData);
+    function isMNO(net){return MNOS.indexOf(net)>=0;}
+    function netClass(net){return net==='O2'?'net-o2':(isMNO(net)?'net-mno':'net-mvno');}
+    function netTypeLabel(net){return isMNO(net)?'MNO':'MVNO';}
 
-        async function loadData() {
-            try {
-                document.getElementById('planCount').textContent = 'Loading...';
-                var response = await fetch(API_BASE + '/api/v1/plans');
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                var data = await response.json();
-                allPlans = data.plans || data || [];
-                o2Plans = allPlans.filter(function(p) {
-                    var net = (p.network_provider || '').toLowerCase();
-                    var prov = (p.provider_name || '').toLowerCase();
-                    return net.indexOf('o2') >= 0 || prov.indexOf('o2') >= 0;
-                });
-                populateNetworkFilter();
-                populateSourceFilter();
-                applyFilters();
-                document.getElementById('planCount').textContent = allPlans.length + ' plans';
-                try { updateCharts(); } catch(ce) { console.warn('Charts unavailable:', ce.message); }
-            } catch (error) {
-                console.error('Error loading data:', error);
-                document.getElementById('planCount').textContent = 'Error: ' + error.message;
-                document.getElementById('plansTable').innerHTML =
-                    '<tr><td colspan="5" style="padding:32px;text-align:center;color:#ef4444">Failed to load data: ' + error.message + '</td></tr>';
+    /**
+     * Visibility Star Rating (1-5 stars)
+     * Measures how prominently a deal is displayed on its source site.
+     *
+     * Factors:
+     *  - Position: plans appearing earlier in the scrape (lower index) were
+     *    higher on the page = more visible. Top 10% = +2, top 30% = +1.
+     *  - Source breadth: available on multiple sources (direct + affiliates) = +1
+     *  - Featured/promo: has extras text suggesting promo = +0.5
+     *  - Direct availability: listed on the provider's own site = +0.5
+     *  - Affiliate presence: listed on comparison sites = +0.5
+     *  - Contract flexibility: 1-month (no commitment) = +0.5
+     *
+     * Base score starts at 1 star, caps at 5.
+     */
+    function calcVisibility(plan, idx, total){
+        var score = 1;
+        var pct = total > 0 ? idx / total : 0;
+        if(pct <= 0.10) score += 2;
+        else if(pct <= 0.30) score += 1;
+        else if(pct <= 0.50) score += 0.5;
+
+        // Multi-source bonus
+        if(plan.sources && plan.sources.length > 1) score += 1;
+
+        // Direct site presence
+        var hasDirect = false, hasAffiliate = false;
+        if(plan.sources){
+            plan.sources.forEach(function(s){
+                if(s.type === 'Direct') hasDirect = true;
+                if(s.type === 'Affiliate') hasAffiliate = true;
+            });
+        } else {
+            if((plan.source_type||'Direct') === 'Direct') hasDirect = true;
+            else hasAffiliate = true;
+        }
+        if(hasDirect) score += 0.5;
+        if(hasAffiliate) score += 0.5;
+
+        // Featured/promo bonus
+        var extras = (plan.extras || '').toLowerCase();
+        if(extras.indexOf('promo') >= 0 || extras.indexOf('offer') >= 0 || extras.indexOf('deal') >= 0 || extras.indexOf('extra data') >= 0)
+            score += 0.5;
+
+        // Flexibility bonus
+        if(plan.contract_months === 1) score += 0.5;
+
+        return Math.max(1, Math.min(5, Math.round(score)));
+    }
+
+    function starHtml(n){
+        var s = '';
+        for(var i = 0; i < 5; i++) s += i < n ? '&#9733;' : '<span style="color:#D1D5DB">&#9733;</span>';
+        return '<span class="star">' + s + '</span>';
+    }
+
+    document.addEventListener('DOMContentLoaded',loadData);
+    document.addEventListener('click',function(e){
+        if(!e.target.closest('#netDropdown'))document.getElementById('netPanel').classList.remove('open');
+    });
+
+    function toggleSource(type){
+        srcActive[type]=!srcActive[type];
+        var btn=document.getElementById(type==='Direct'?'srcDirect':'srcAffiliate');
+        if(srcActive[type]){btn.style.background='#0050ff';btn.style.color='white';}
+        else{btn.style.background='white';btn.style.color='#6B7280';}
+        applyFilters();
+    }
+
+    async function loadData(){
+        try{
+            document.getElementById('planCount').textContent='Loading...';
+            var r=await fetch(API+'/api/v1/plans');
+            if(!r.ok)throw new Error('HTTP '+r.status);
+            var d=await r.json();
+            allPlans=d.plans||[];
+            o2Plans=allPlans.filter(function(p){return(p.network_provider||'').toLowerCase()==='o2';});
+            buildNetworkDropdown();
+            applyFilters();
+            document.getElementById('planCount').textContent=allPlans.length+' unique plans';
+        }catch(e){
+            console.error(e);
+            document.getElementById('planCount').textContent='Error';
+            document.getElementById('plansTable').innerHTML='<tr><td colspan="8" style="padding:32px;text-align:center;color:#ef4444">'+e.message+'</td></tr>';
+        }
+    }
+
+    function buildNetworkDropdown(){
+        var nets={};
+        allPlans.forEach(function(p){var n=p.network_provider||'Unknown';nets[n]=(nets[n]||0)+1;});
+        var mno=[],mvno=[];
+        Object.keys(nets).sort().forEach(function(n){
+            if(MNOS.indexOf(n)>=0)mno.push(n);else mvno.push(n);
+        });
+        var panel=document.getElementById('netPanel');
+        var html='<div class="ms-actions"><button onclick="netSelectAll()">Select all</button><button onclick="netSelectNone()">Deselect all</button><button onclick="netSelectMNO()">MNOs only</button></div>';
+        html+='<div class="ms-group"><div class="ms-group-label">MNOs (Major Networks)</div>';
+        mno.forEach(function(n){html+='<label class="ms-item"><input type="checkbox" value="'+n+'" checked onchange="applyFilters()"> '+n+' <span style="color:#9CA3AF;font-size:10px">('+nets[n]+')</span></label>';});
+        html+='</div><div class="ms-group"><div class="ms-group-label">MVNOs &amp; Others</div>';
+        mvno.forEach(function(n){html+='<label class="ms-item"><input type="checkbox" value="'+n+'" checked onchange="applyFilters()"> '+n+' <span style="color:#9CA3AF;font-size:10px">('+nets[n]+')</span></label>';});
+        html+='</div>';
+        panel.innerHTML=html;
+    }
+
+    function toggleDropdown(id){document.getElementById(id).querySelector('.ms-panel').classList.toggle('open');}
+    function netSelectAll(){document.querySelectorAll('#netPanel input').forEach(function(c){c.checked=true;});applyFilters();}
+    function netSelectNone(){document.querySelectorAll('#netPanel input').forEach(function(c){c.checked=false;});applyFilters();}
+    function netSelectMNO(){document.querySelectorAll('#netPanel input').forEach(function(c){c.checked=MNOS.indexOf(c.value)>=0;});applyFilters();}
+
+    function getSelectedNetworks(){
+        var v=[];document.querySelectorAll('#netPanel input:checked').forEach(function(c){v.push(c.value);});return v;
+    }
+
+    function updateNetLabel(){
+        var sel=getSelectedNetworks();
+        var total=document.querySelectorAll('#netPanel input').length;
+        var label=document.getElementById('netLabel');
+        if(sel.length===total)label.textContent='All Networks ('+total+')';
+        else if(sel.length===0)label.textContent='None selected';
+        else if(sel.length<=3)label.textContent=sel.join(', ');
+        else label.textContent=sel.length+' of '+total+' selected';
+    }
+
+    function clearFilters(){
+        document.querySelectorAll('#netPanel input').forEach(function(c){c.checked=true;});
+        srcActive={Direct:true,Affiliate:true};
+        document.getElementById('srcDirect').style.background='#0050ff';document.getElementById('srcDirect').style.color='white';
+        document.getElementById('srcAffiliate').style.background='#0050ff';document.getElementById('srcAffiliate').style.color='white';
+        document.getElementById('filterData').value='';
+        document.getElementById('filterContract').value='';
+        document.getElementById('filterMaxPrice').value='';
+        applyFilters();
+    }
+
+    function extractHost(url){if(!url)return'';try{return new URL(url).hostname.replace('www.','');}catch(e){return'';}}
+
+    function applyFilters(){
+        var nets=getSelectedNetworks();
+        var df=document.getElementById('filterData').value;
+        var ctr=document.getElementById('filterContract').value;
+        var mp=parseFloat(document.getElementById('filterMaxPrice').value)||Infinity;
+        updateNetLabel();
+
+        filteredPlans=allPlans.filter(function(p){
+            var n=p.network_provider||'Unknown';
+            var g=p.data_unlimited?99999:(p.data_gb||0);
+            var pr=p.current_price||p.price||0;
+            if(nets.length>0&&nets.indexOf(n)<0)return false;
+            // Source filter: plan passes if ANY of its sources match an active filter
+            var planSources=[];
+            if(p.sources&&p.sources.length>0){
+                p.sources.forEach(function(s){planSources.push(s.type);});
+            }else{
+                planSources.push(p.source_type||'Direct');
             }
-        }
+            var sourceMatch=false;
+            planSources.forEach(function(st){if(srcActive[st])sourceMatch=true;});
+            if(!sourceMatch)return false;
+            if(df){if(df==='unlimited'){if(!p.data_unlimited)return false;}else{var pp=df.split('-').map(Number);if(p.data_unlimited||g<pp[0]||g>pp[1])return false;}}
+            if(ctr&&p.contract_months!=ctr)return false;
+            if(pr>mp)return false;
+            return true;
+        });
+        sortPlans();renderTable();
+        document.getElementById('filteredCount').textContent='Showing '+filteredPlans.length+' of '+allPlans.length+' unique plans';
+        try{updateCharts(filteredPlans);}catch(e){console.warn(e);}
+        try{buildRankTables();}catch(e){console.warn(e);}
+    }
 
-        function populateNetworkFilter() {
-            var networks = [];
-            var seen = {};
-            allPlans.forEach(function(p) {
-                var n = p.network_provider || p.provider_name || 'Unknown';
-                if (!seen[n]) { seen[n] = true; networks.push(n); }
-            });
-            var sel = document.getElementById('filterNetwork');
-            sel.innerHTML = '<option value="">All Networks</option>' +
-                networks.sort().map(function(n) { return '<option value="' + n + '">' + n + '</option>'; }).join('');
-        }
+    function sortTable(c){if(sortCol===c)sortAsc=!sortAsc;else{sortCol=c;sortAsc=true;}sortPlans();renderTable();}
+    function sortPlans(){
+        var total=filteredPlans.length;
+        filteredPlans.sort(function(a,b){
+            var va,vb;
+            var ai=filteredPlans.indexOf(a),bi=filteredPlans.indexOf(b);
+            switch(sortCol){
+                case'network':va=(a.network_provider||'').toLowerCase();vb=(b.network_provider||'').toLowerCase();break;
+                case'name':va=(a.name||'').toLowerCase();vb=(b.name||'').toLowerCase();break;
+                case'price':va=a.current_price||a.price||0;vb=b.current_price||b.price||0;break;
+                case'data':va=a.data_unlimited?99999:(a.data_gb||0);vb=b.data_unlimited?99999:(b.data_gb||0);break;
+                case'visibility':va=calcVisibility(a,ai,total);vb=calcVisibility(b,bi,total);break;
+                default:va=0;vb=0;
+            }
+            return sortAsc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
+        });
+    }
 
-        function populateSourceFilter() {
-            var sources = [];
-            var seen = {};
-            allPlans.forEach(function(p) {
-                var s = extractSource(p.url);
-                if (s && !seen[s]) { seen[s] = true; sources.push(s); }
-            });
-            var sel = document.getElementById('filterSource');
-            sel.innerHTML = '<option value="">All Sources</option>' +
-                sources.sort().map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
-        }
+    function renderTable(){
+        var t=document.getElementById('plansTable');
+        var total=filteredPlans.length;
+        if(!total){t.innerHTML='<tr><td colspan="8" style="padding:32px;text-align:center;color:#9CA3AF">No plans match</td></tr>';return;}
+        t.innerHTML=filteredPlans.slice(0,300).map(function(p,i){
+            var n=p.network_provider||'?';var pr=p.current_price||p.price||0;
+            var ds=p.data_unlimited?'Unlimited':(p.data_gb?p.data_gb+' GB':'?');
+            var ct=p.contract_months?p.contract_months+' mo':'?';
+            var sel=selPlan&&selPlan.id===p.id;
+            var vis=calcVisibility(p,i,total);
+            var nc=netClass(n);
+            var typeTag=n==='O2'?'<span style="font-size:9px;color:#0050ff;display:block">MNO</span>':(isMNO(n)?'<span style="font-size:9px;color:#7C3AED;display:block">MNO</span>':'<span style="font-size:9px;color:#9CA3AF;display:block">MVNO</span>');
+            // Build sources display from merged sources array
+            var sourcesHtml='';
+            var linksHtml='';
+            if(p.sources&&p.sources.length>0){
+                sourcesHtml=p.sources.map(function(s){
+                    var bc=s.type==='Affiliate'?'badge-a':'badge-d';
+                    return'<span class="badge '+bc+'" style="margin:1px">'+s.name+'</span>';
+                }).join(' ');
+                var urls=p.source_urls||[];
+                if(urls.length>0){
+                    linksHtml=urls.map(function(u){
+                        return'<a href="'+u+'" target="_blank" class="dl" onclick="event.stopPropagation()" style="display:block">'+extractHost(u)+'&rarr;</a>';
+                    }).join('');
+                }
+            }else{
+                var s=p.source_type||'Direct';var bc=s==='Affiliate'?'badge-a':'badge-d';
+                sourcesHtml='<span class="badge '+bc+'">'+s+'</span><br><span style="font-size:10px;color:#9CA3AF">'+extractHost(p.url)+'</span>';
+                linksHtml=p.url?'<a href="'+p.url+'" target="_blank" class="dl" onclick="event.stopPropagation()">View&rarr;</a>':'-';
+            }
+            return'<tr class="'+(sel?'sel':'')+'" onclick="selectPlan('+i+')">'+
+                '<td><span class="'+nc+'">'+n+'</span>'+typeTag+'</td>'+
+                '<td>'+(p.name||'?')+'</td>'+
+                '<td style="font-weight:600">&pound;'+pr.toFixed(2)+'</td>'+
+                '<td>'+ds+'</td><td>'+ct+'</td>'+
+                '<td style="white-space:nowrap">'+starHtml(vis)+'</td>'+
+                '<td>'+sourcesHtml+'</td>'+
+                '<td>'+linksHtml+'</td></tr>';
+        }).join('');
+    }
 
-        function extractSource(url) {
-            if (!url) return 'Unknown';
-            try { return new URL(url).hostname.replace('www.', '').split('.')[0]; } catch(e) { return 'Unknown'; }
-        }
+    function selectPlan(i){selPlan=filteredPlans[i];renderTable();showO2(selPlan);showHist(selPlan);}
 
-        function applyFilters() {
-            var network = document.getElementById('filterNetwork').value;
-            var dataFilter = document.getElementById('filterData').value;
-            var contract = document.getElementById('filterContract').value;
-            var maxPrice = parseFloat(document.getElementById('filterMaxPrice').value) || Infinity;
-            var source = document.getElementById('filterSource').value;
+    function showO2(p){
+        var el=document.getElementById('o2Panel');
+        if(!p){el.innerHTML='<p style="color:#9CA3AF;text-align:center;padding:16px 0;font-size:12px">Click any plan</p>';return;}
+        var pd=p.data_unlimited?99999:(p.data_gb||0);var pp=p.current_price||p.price||0;
+        var best=null,bs=Infinity;
+        o2Plans.forEach(function(o){var od=o.data_unlimited?99999:(o.data_gb||0);var sc=Math.abs(pd-od)+(p.contract_months===(o.contract_months||12)?0:50);if(sc<bs){bs=sc;best=o;}});
+        var pds=p.data_unlimited?'Unlimited':(p.data_gb||'?')+' GB';
+        var h='<div style="padding:10px;background:#f9fafb;border-radius:8px;margin-bottom:8px">'+
+            '<p style="font-size:10px;color:#9CA3AF;text-transform:uppercase;margin:0 0 2px 0">Selected</p>'+
+            '<p style="font-weight:600;margin:0;font-size:13px">'+(p.name||'?')+'</p>'+
+            '<p style="font-size:12px;color:#6B7280;margin:2px 0">'+pds+' | '+(p.contract_months||'?')+' mo</p>'+
+            '<p style="font-size:18px;font-weight:700;margin:4px 0 0 0">&pound;'+pp.toFixed(2)+'/mo</p></div>';
+        if(!best){el.innerHTML=h+'<p style="text-align:center;color:#9CA3AF;font-size:11px;padding:8px">No O2 match</p>';return;}
+        var op=best.current_price||best.price||0;var df=op-pp;
+        var dc=df>0?'#EF4444':(df<0?'#10B981':'#6B7280');
+        var dl=df>0?('+&pound;'+df.toFixed(2)+' more'):(df<0?('&pound;'+Math.abs(df).toFixed(2)+' less'):'Same');
+        var ods=best.data_unlimited?'Unlimited':(best.data_gb||'?')+' GB';
+        el.innerHTML=h+'<div style="text-align:center;color:#D1D5DB;font-size:16px">&#8595;</div>'+
+            '<div style="padding:10px;background:#EFF6FF;border-radius:8px;border:2px solid #BFDBFE;margin-top:4px">'+
+            '<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px"><span style="background:#0050ff;color:white;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700">O2</span><span style="font-size:10px;color:#9CA3AF">Closest</span></div>'+
+            '<p style="font-weight:600;margin:0;font-size:13px">'+(best.name||'O2')+'</p>'+
+            '<p style="font-size:12px;color:#6B7280;margin:2px 0">'+ods+' | '+(best.contract_months||'?')+' mo</p>'+
+            '<p style="font-size:18px;font-weight:700;margin:4px 0 0 0">&pound;'+op.toFixed(2)+'/mo</p>'+
+            '<p style="margin:4px 0 0 0;font-weight:500;font-size:12px;color:'+dc+'">'+dl+'</p></div>'+
+            (best.url?'<a href="'+best.url+'" target="_blank" style="display:block;text-align:center;margin-top:6px;color:#2563EB;font-size:11px">View on O2 &rarr;</a>':'');
+    }
 
-            filteredPlans = allPlans.filter(function(plan) {
-                var planNetwork = plan.network_provider || plan.provider_name || '';
-                var planData = plan.data_gb;
-                var planUnlimited = plan.data_unlimited;
-                var planContract = plan.contract_months;
-                var planPrice = plan.current_price || plan.price || 0;
-                var planSource = extractSource(plan.url);
+    function showHist(p){
+        document.getElementById('histSection').style.display='block';
+        document.getElementById('histName').textContent=p.name||'';
+        if(typeof Chart==='undefined')return;
+        var ctx=document.getElementById('histChart').getContext('2d');
+        if(c3)c3.destroy();
+        fetch(API+'/api/v1/plans/'+p.id+'/history').then(function(r){return r.json();}).then(function(d){
+            var h=d.history||[];var labels,prices;
+            if(h.length>1){labels=h.map(function(x){return new Date(x.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});});prices=h.map(function(x){return x.price;});}
+            else{var pr=p.current_price||p.price||0;labels=[];prices=[];var t=new Date();for(var i=6;i>=0;i--){var dd=new Date(t);dd.setDate(dd.getDate()-i*7);labels.push(dd.toLocaleDateString('en-GB',{day:'numeric',month:'short'}));prices.push(pr);}}
+            c3=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{data:prices,borderColor:'#0050ff',backgroundColor:'rgba(0,80,255,0.1)',fill:true,tension:0.3,pointRadius:3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:false}}}});
+        }).catch(function(e){console.error(e);});
+    }
 
-                if (network && planNetwork.toLowerCase().indexOf(network.toLowerCase()) < 0) return false;
-                if (source && planSource.toLowerCase() !== source.toLowerCase()) return false;
-                if (dataFilter) {
-                    if (dataFilter === 'unlimited' && !planUnlimited) return false;
-                    if (dataFilter !== 'unlimited') {
-                        if (dataFilter.indexOf('+') >= 0) {
-                            var min = parseInt(dataFilter);
-                            if (planUnlimited || !planData || planData < min) return false;
-                        } else {
-                            var parts = dataFilter.split('-').map(Number);
-                            if (planUnlimited || !planData || planData < parts[0] || planData > parts[1]) return false;
+    function updateCharts(plans){
+        if(typeof Chart==='undefined')return;
+        var d=plans||filteredPlans;
+
+        // Plugin: draw deal count labels above each bar stack
+        var countLabelPlugin={
+            id:'countLabels',
+            afterDraw:function(chart){
+                var counts=chart._countLabels;
+                if(!counts)return;
+                var ctx=chart.ctx;
+                var lastIdx=chart.data.datasets.length-1;
+                var meta=chart.getDatasetMeta(lastIdx);
+                if(!meta||!meta.data)return;
+                ctx.save();
+                ctx.font='bold 10px -apple-system, sans-serif';
+                ctx.textAlign='center';
+                ctx.textBaseline='bottom';
+                ctx.fillStyle='#4B5563';
+                meta.data.forEach(function(bar,i){
+                    if(counts[i]!==undefined&&counts[i]>0){
+                        var y=bar.y;
+                        if(typeof bar.y==='number'){
+                            ctx.fillText(counts[i],bar.x,y-4);
                         }
                     }
+                });
+                ctx.restore();
+            }
+        };
+
+        // Dot distribution chart: each deal is a dot, coloured by above/below avg
+        var np={};
+        var dotPlansMap=[];  // store plan refs for click handling
+        d.forEach(function(p){
+            var n=p.network_provider||'Other';
+            var pr=p.current_price||p.price||0;
+            if(pr<=0)return;
+            if(!np[n])np[n]=[];
+            np[n].push({price:pr,plan:p});
+        });
+        var nets=Object.keys(np).sort(function(a,b){
+            var aa=np[a].reduce(function(s,v){return s+v.price;},0)/np[a].length;
+            var bb=np[b].reduce(function(s,v){return s+v.price;},0)/np[b].length;
+            return aa-bb;
+        });
+
+        // Build scatter data: each dot is {x: networkIndex, y: price}
+        var scatterData=[];
+        var avgLine=[];
+        var globalAvg=0;var globalCount=0;
+        nets.forEach(function(n,idx){
+            var items=np[n];
+            var avg=items.reduce(function(s,v){return s+v.price;},0)/items.length;
+            avgLine.push(avg);
+            globalAvg+=items.reduce(function(s,v){return s+v.price;},0);
+            globalCount+=items.length;
+            // Jitter dots horizontally to avoid overlap
+            items.forEach(function(item,j){
+                var jitter=0;
+                scatterData.push({
+                    x:idx+jitter,
+                    y:item.price,
+                    plan:item.plan,
+                    network:n,
+                    avg:avg
+                });
+            });
+        });
+        globalAvg=globalCount>0?globalAvg/globalCount:0;
+
+        // Colour each dot: green gradient below avg, red gradient above avg
+        var dotColors=scatterData.map(function(pt){
+            var ratio=(pt.y-pt.avg)/Math.max(pt.avg,1);
+            if(pt.y<=pt.avg){
+                var g=Math.max(0,Math.min(1,-ratio*2));
+                return 'rgba(16,185,129,'+(0.5+g*0.5)+')';
+            }else{
+                var r=Math.min(1,ratio*2);
+                return 'rgba(239,68,68,'+(0.5+r*0.5)+')';
+            }
+        });
+
+        // Store plan references for click
+        dotPlansMap=scatterData.map(function(pt){return pt.plan;});
+
+        if(c1)c1.destroy();
+        var dotTooltipEl=document.getElementById('dotTooltip');
+        var c1Canvas=document.getElementById('priceDistChart');
+
+        var c1Cfg={
+            type:'scatter',
+            data:{
+                datasets:[
+                    {
+                        label:'Deals',
+                        data:scatterData.map(function(pt){return{x:pt.x,y:pt.y};}),
+                        backgroundColor:dotColors,
+                        borderColor:dotColors,
+                        pointRadius:5,
+                        pointHoverRadius:8,
+                        pointStyle:'circle',
+                    },
+                    {
+                        label:'Network Avg',
+                        data:avgLine.map(function(avg,i){return{x:i,y:avg};}),
+                        type:'line',
+                        borderColor:'#0050ff',
+                        borderWidth:2,
+                        borderDash:[6,3],
+                        pointRadius:0,
+                        pointHitRadius:0,
+                        fill:false,
+                        tension:0.3,
+                        order:0,
+                    }
+                ]
+            },
+            options:{
+                responsive:true,
+                animation:{duration:400},
+                plugins:{
+                    legend:{display:false},
+                    tooltip:{enabled:false},
+                },
+                scales:{
+                    y:{
+                        beginAtZero:true,
+                        title:{display:true,text:'\u00a3/mo',font:{size:9}},
+                        ticks:{callback:function(v){return '\u00a3'+v;},font:{size:9}},
+                        grid:{color:'rgba(0,0,0,0.05)'}
+                    },
+                    x:{
+                        type:'linear',
+                        min:-0.5,
+                        max:nets.length-0.5,
+                        ticks:{
+                            callback:function(v){var i=Math.round(v);return(i>=0&&i<nets.length)?nets[i]:'';},
+                            font:{size:9,weight:'bold'},
+                            maxRotation:90,
+                            minRotation:45,
+                            autoSkip:false,
+                            stepSize:1,
+                            padding:2,
+                            color:function(ctx){var i=Math.round(ctx.tick.value);if(i<0||i>=nets.length)return'#9CA3AF';var n=nets[i];if(n==='O2')return'#0050ff';if(isMNO(n))return'#7C3AED';return'#1F2937';}
+                        },
+                        grid:{display:true,drawOnChartArea:true,color:'rgba(0,0,0,0.04)',lineWidth:1}
+                    }
+                },
+                onClick:function(evt,elements){
+                    if(elements&&elements.length>0){
+                        var idx=elements[0].index;
+                        var dsIdx=elements[0].datasetIndex;
+                        if(dsIdx===0&&dotPlansMap[idx]){
+                            var plan=dotPlansMap[idx];
+                            var fi=filteredPlans.indexOf(plan);
+                            if(fi>=0)selectPlan(fi);
+                            else{selPlan=plan;showO2(plan);showHist(plan);}
+                        }
+                    }
+                },
+                onHover:function(evt,elements){
+                    c1Canvas.style.cursor=elements.length>0?'pointer':'default';
                 }
-                if (contract && planContract != contract) return false;
-                if (planPrice > maxPrice) return false;
+            }
+        };
+        c1=new Chart(c1Canvas,c1Cfg);
+
+        // Custom hover tooltip
+        c1Canvas.addEventListener('mousemove',function(evt){
+            var points=c1.getElementsAtEventForMode(evt,'nearest',{intersect:true},false);
+            if(points.length>0&&points[0].datasetIndex===0){
+                var idx=points[0].index;
+                var plan=dotPlansMap[idx];
+                if(plan){
+                    var pr=plan.current_price||plan.price||0;
+                    var ds=plan.data_unlimited?'Unlimited':(plan.data_gb?plan.data_gb+'GB':'?');
+                    var ct=plan.contract_months?plan.contract_months+'mo':'?';
+                    var net=plan.network_provider||'?';
+                    dotTooltipEl.innerHTML='<div style="font-weight:700;margin-bottom:2px">'+net+'</div>'+
+                        '<div>'+(plan.name||ds)+'</div>'+
+                        '<div style="font-size:14px;font-weight:700;color:#60A5FA">\u00a3'+pr.toFixed(2)+'/mo</div>'+
+                        '<div style="color:#9CA3AF">'+ds+' \u00b7 '+ct+'</div>'+
+                        '<div style="color:#60A5FA;font-size:10px;margin-top:2px">Click to compare</div>';
+                    var rect=c1Canvas.getBoundingClientRect();
+                    var x=evt.clientX-rect.left;
+                    var y=evt.clientY-rect.top;
+                    dotTooltipEl.style.left=Math.min(x+12,rect.width-180)+'px';
+                    dotTooltipEl.style.top=Math.max(y-70,0)+'px';
+                    dotTooltipEl.style.display='block';
+                }
+            }else{
+                dotTooltipEl.style.display='none';
+            }
+        });
+        c1Canvas.addEventListener('mouseleave',function(){dotTooltipEl.style.display='none';});
+
+        // Data vs Price: same candlestick style (min/avg/max)
+        var dc={'<5 GB':[],'5-<20 GB':[],'20-<50 GB':[],'50-<100 GB':[],'100+ GB':[],'Unlimited':[]};
+        d.forEach(function(p){var pr=p.current_price||p.price||0;if(pr<=0)return;var g=p.data_unlimited?99999:(p.data_gb||0);if(g>=99999)dc['Unlimited'].push(pr);else if(g>=100)dc['100+ GB'].push(pr);else if(g>=50)dc['50-<100 GB'].push(pr);else if(g>=20)dc['20-<50 GB'].push(pr);else if(g>=5)dc['5-<20 GB'].push(pr);else dc['<5 GB'].push(pr);});
+        var cl=Object.keys(dc);
+        var dMin=[],dBody=[],dTop=[],dAvg=[],countData2=[];
+        cl.forEach(function(c){
+            var pr=dc[c].slice().sort(function(a,b){return a-b;});
+            countData2.push(pr.length);
+            if(pr.length===0){dMin.push(0);dBody.push(0);dTop.push(0);dAvg.push(0);return;}
+            var mn=pr[0];var mx=pr[pr.length-1];
+            var avg=pr.reduce(function(s,v){return s+v;},0)/pr.length;
+            dMin.push(mn);dBody.push(Math.max(0,avg-mn));dTop.push(Math.max(0,mx-avg));dAvg.push(avg);
+        });
+        if(c2)c2.destroy();
+        var c2Cfg={
+            type:'bar',
+            data:{labels:cl,datasets:[
+                {label:'Min',data:dMin,backgroundColor:'#10B981',borderRadius:{topLeft:4,topRight:4},barPercentage:0.5,stack:'candle2'},
+                {label:'Avg',data:dBody,backgroundColor:'#0050ff',barPercentage:0.5,stack:'candle2'},
+                {label:'Max',data:dTop,backgroundColor:'#EF4444',borderRadius:{topLeft:4,topRight:4},barPercentage:0.5,stack:'candle2'},
+            ]},
+            options:{
+                responsive:true,
+                plugins:{
+                    legend:{display:true,position:'top',labels:{boxWidth:10,font:{size:9}}},
+                    tooltip:{callbacks:{label:function(ctx){var i=ctx.dataIndex;if(ctx.datasetIndex===0)return 'Min: \u00a3'+dMin[i].toFixed(2);if(ctx.datasetIndex===1)return 'Avg: \u00a3'+dAvg[i].toFixed(2);return 'Max: \u00a3'+(dAvg[i]+dTop[i]).toFixed(2);}}}
+                },
+                scales:{
+                    y:{stacked:true,beginAtZero:true,title:{display:true,text:'\u00a3/mo',font:{size:9}},ticks:{callback:function(v){return '\u00a3'+v;},font:{size:9}}},
+                    x:{stacked:true,ticks:{font:{size:9}}}
+                }
+            },
+            plugins:[countLabelPlugin]
+        };
+        c2=new Chart(document.getElementById('dataVsPriceChart'),c2Cfg);
+        c2._countLabels=countData2;
+    }
+
+    function buildRankTables(){
+        var srcFilter=document.getElementById('rankSource').value;
+        var typeFilter=document.getElementById('rankType').value;
+        var container=document.getElementById('rankTables');
+
+        // Update section title based on type filter
+        var titleEl=document.getElementById('rankTitle');
+        var subEl=document.getElementById('rankSubtitle');
+        if(typeFilter==='MVNO'){
+            titleEl.textContent='MVNO Ranking';
+            subEl.textContent='Cheapest MVNO deal per provider in each data bracket \u2014 variance shows difference to cheapest';
+        }else if(typeFilter==='MNO'){
+            titleEl.textContent='MNO Ranking vs O2';
+            subEl.textContent='Cheapest MNO deal per provider in each data bracket \u2014 variance shows price difference to O2';
+        }else{
+            titleEl.textContent='Competitor Ranking vs O2';
+            subEl.textContent='Cheapest deal per provider in each data bracket \u2014 variance shows price difference to O2';
+        }
+
+        var brackets=[
+            {id:'lt5',label:'Entry Tariffs (Below 5GB)',min:0,max:4,unl:false},
+            {id:'5to20',label:'5GB - <20GB',min:5,max:19,unl:false},
+            {id:'20to50',label:'20GB - <50GB',min:20,max:49,unl:false},
+            {id:'50to100',label:'50GB - <100GB',min:50,max:99,unl:false},
+            {id:'100plus',label:'100GB - <Unlimited',min:100,max:9998,unl:false},
+            {id:'unl',label:'Unlimited',min:0,max:0,unl:true},
+        ];
+
+        var html='';
+        brackets.forEach(function(br){
+            // Filter plans for this bracket
+            var plans=allPlans.filter(function(p){
+                if(srcFilter!=='all'){
+                    var planSources=[];
+                    if(p.sources&&p.sources.length>0){p.sources.forEach(function(s){planSources.push(s.type);});}
+                    else{planSources.push(p.source_type||'Direct');}
+                    if(planSources.indexOf(srcFilter)<0)return false;
+                }
+                var gb=p.data_gb||0;
+                var isUnl=p.data_unlimited;
+                if(br.unl)return isUnl;
+                if(isUnl)return false;
+                return gb>=br.min&&gb<=br.max;
+            });
+
+            // Group by provider, keep cheapest per provider
+            var byProv={};
+            plans.forEach(function(p){
+                var net=p.network_provider||'Unknown';
+                var price=p.current_price||p.price||0;
+                if(!byProv[net]||price<byProv[net].price){
+                    byProv[net]={
+                        provider:net,
+                        data:p.data_unlimited?'Unltd':(p.data_gb||'?')+'GB',
+                        price:price,
+                        dataGb:p.data_gb||0,
+                        unlimited:p.data_unlimited
+                    };
+                }
+            });
+
+            var allRanked=Object.values(byProv).sort(function(a,b){return a.price-b.price;});
+
+            // Apply MNO/MVNO type filter
+            var ranked=allRanked.filter(function(r){
+                if(typeFilter==='MNO')return isMNO(r.provider);
+                if(typeFilter==='MVNO')return !isMNO(r.provider);
                 return true;
             });
-            sortPlans();
-            renderTable();
-            document.getElementById('filteredCount').textContent = 'Showing ' + filteredPlans.length + ' of ' + allPlans.length;
-        }
 
-        function sortTable(column) {
-            if (sortColumn === column) { sortAsc = !sortAsc; } else { sortColumn = column; sortAsc = true; }
-            sortPlans();
-            renderTable();
-        }
+            // Reference price for variance column
+            var o2Entry=byProv['O2'];
+            var refPrice=o2Entry?o2Entry.price:null;
+            var refLabel='vs O2';
+            
+            // When MVNO-only, compare against cheapest in bracket instead
+            if(typeFilter==='MVNO'){
+                refPrice=ranked.length>0?ranked[0].price:null;
+                refLabel='vs Best';
+            }
 
-        function sortPlans() {
-            filteredPlans.sort(function(a, b) {
-                var valA, valB;
-                switch(sortColumn) {
-                    case 'network': valA = (a.network_provider || a.provider_name || '').toLowerCase(); valB = (b.network_provider || b.provider_name || '').toLowerCase(); break;
-                    case 'name': valA = (a.name || '').toLowerCase(); valB = (b.name || '').toLowerCase(); break;
-                    case 'price': valA = a.current_price || a.price || 0; valB = b.current_price || b.price || 0; break;
-                    case 'data': valA = a.data_unlimited ? 9999 : (a.data_gb || 0); valB = b.data_unlimited ? 9999 : (b.data_gb || 0); break;
-                    default: valA = a[sortColumn]; valB = b[sortColumn];
+            // Find O2 rank (only relevant when O2 is in the list)
+            var o2Rank=-1;
+            ranked.forEach(function(r,i){if(r.provider==='O2')o2Rank=i+1;});
+
+            // Build table HTML
+            var title=br.label;
+            if(o2Rank>0)title+=' <span style="color:#F59E0B;font-size:12px">&#9733; #'+o2Rank+'</span>';
+
+            html+='<div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">';
+            html+='<div style="background:#f3f4f6;padding:8px 12px;font-size:12px;font-weight:700;color:#1F2937;border-bottom:1px solid #e5e7eb">'+title+'</div>';
+            html+='<table style="width:100%;font-size:11px">';
+            html+='<thead><tr style="background:#f9fafb"><th style="padding:4px 8px;font-size:10px;color:#6B7280;width:30px">#</th><th style="padding:4px 8px;font-size:10px;color:#6B7280">Provider</th><th style="padding:4px 8px;font-size:10px;color:#6B7280">Data</th><th style="padding:4px 8px;font-size:10px;color:#6B7280;text-align:right">Price</th><th style="padding:4px 8px;font-size:10px;color:#6B7280;text-align:right">'+refLabel+'</th></tr></thead>';
+            html+='<tbody>';
+
+            if(ranked.length===0){
+                html+='<tr><td colspan="5" style="padding:12px;text-align:center;color:#9CA3AF;font-size:11px">No deals</td></tr>';
+            }
+
+            ranked.forEach(function(r,i){
+                var isO2=r.provider==='O2';
+                var mno=isMNO(r.provider);
+                var isRef=(typeFilter==='MVNO')?(i===0):isO2;
+                
+                // Row styling
+                var rowStyle='border-bottom:1px solid #f3f4f6;';
+                var cellColor='color:#1F2937;';
+                var rankColor='color:#374151;';
+                var dataColor='color:#6B7280;';
+                var provColor=isO2?'color:#0050ff;':(mno?'color:#002F6C;':'color:#1F2937;');
+                var fontW='';
+                
+                if(isO2){
+                    rowStyle+='background:#0050ff;';
+                    cellColor='color:white;';
+                    rankColor='color:rgba(255,255,255,0.8);';
+                    dataColor='color:rgba(255,255,255,0.7);';
+                    provColor='color:white;';
+                    fontW='font-weight:700;';
+                }else if(isRef){
+                    rowStyle+='background:#7C3AED;';
+                    cellColor='color:white;';
+                    rankColor='color:rgba(255,255,255,0.8);';
+                    dataColor='color:rgba(255,255,255,0.7);';
+                    provColor='color:white;';
+                    fontW='font-weight:700;';
+                }else if(mno){
+                    rowStyle+='background:#EFF6FF;';
+                    fontW='font-weight:600;';
                 }
-                if (valA < valB) return sortAsc ? -1 : 1;
-                if (valA > valB) return sortAsc ? 1 : -1;
-                return 0;
-            });
-        }
 
-        function renderTable() {
-            var tbody = document.getElementById('plansTable');
-            if (filteredPlans.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">No plans match your filters</td></tr>';
-                return;
-            }
-            var rows = filteredPlans.slice(0, 200).map(function(plan, idx) {
-                var network = plan.network_provider || plan.provider_name || 'Unknown';
-                var price = plan.current_price || plan.price || 0;
-                var dataStr = plan.data_unlimited ? 'Unlimited' : (plan.data_gb ? plan.data_gb + ' GB' : '?');
-                var contractStr = plan.contract_months ? plan.contract_months + ' mo' : '?';
-                var sel = selectedPlan && selectedPlan.id === plan.id;
-                return '<tr class="' + (sel ? 'selected' : '') + '" onclick="selectPlan(' + idx + ')">' +
-                    '<td class="px-4 py-3 font-medium">' + network + '</td>' +
-                    '<td class="px-4 py-3">' + (plan.name || 'Unknown') + '</td>' +
-                    '<td class="px-4 py-3 font-semibold">&pound;' + price.toFixed(2) + '</td>' +
-                    '<td class="px-4 py-3">' + dataStr + '</td>' +
-                    '<td class="px-4 py-3">' + contractStr + '</td>' +
-                    '</tr>';
-            });
-            tbody.innerHTML = rows.join('');
-        }
-
-        function selectPlan(index) {
-            selectedPlan = filteredPlans[index];
-            renderTable();
-            showO2Comparison(selectedPlan);
-            showPriceHistory(selectedPlan);
-        }
-
-        function showO2Comparison(plan) {
-            var panel = document.getElementById('o2ComparePanel');
-            if (!plan) {
-                panel.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">Click on any plan to compare</p>';
-                return;
-            }
-            var planData = plan.data_unlimited ? 9999 : (plan.data_gb || 0);
-            var planPrice = plan.current_price || plan.price || 0;
-            var planContract = plan.contract_months || 12;
-            var closestO2 = null;
-            var minScore = Infinity;
-            o2Plans.forEach(function(o2) {
-                var o2Data = o2.data_unlimited ? 9999 : (o2.data_gb || 0);
-                var o2Contract = o2.contract_months || 12;
-                var score = Math.abs(planData - o2Data) + (planContract === o2Contract ? 0 : 50);
-                if (score < minScore) { minScore = score; closestO2 = o2; }
-            });
-
-            var planDataStr = plan.data_unlimited ? 'Unlimited' : (plan.data_gb || '?') + ' GB';
-            var selectedHtml =
-                '<div class="p-3 bg-gray-50 rounded-lg mb-3">' +
-                '<p class="text-xs text-gray-400 uppercase mb-1">Selected</p>' +
-                '<p class="font-semibold">' + (plan.name || 'Unknown') + '</p>' +
-                '<p class="text-sm text-gray-500">' + planDataStr + ' | ' + (plan.contract_months || '?') + ' mo</p>' +
-                '<p class="text-xl font-bold mt-2">&pound;' + planPrice.toFixed(2) + '/mo</p>' +
-                '</div>';
-
-            if (!closestO2) {
-                panel.innerHTML = selectedHtml +
-                    '<p class="text-center text-gray-400 py-4">No O2 equivalent found</p>';
-                return;
-            }
-
-            var o2Price = closestO2.current_price || closestO2.price || 0;
-            var priceDiff = o2Price - planPrice;
-            var diffColor = priceDiff > 0 ? '#ed0100' : (priceDiff < 0 ? '#10B981' : '#999');
-            var diffLabel = priceDiff > 0 ? ('+&pound;' + priceDiff.toFixed(2) + ' more') :
-                           (priceDiff < 0 ? ('&pound;' + Math.abs(priceDiff).toFixed(2) + ' less') : 'Same price');
-            var o2DataStr = closestO2.data_unlimited ? 'Unlimited' : (closestO2.data_gb || '?') + ' GB';
-
-            panel.innerHTML = selectedHtml +
-                '<div class="text-center text-2xl text-gray-300 my-2">&#8595;</div>' +
-                '<div class="p-3 bg-blue-50 rounded-lg border-2 border-blue-200">' +
-                '<div class="flex items-center gap-2 mb-2">' +
-                '<span style="background:#001687" class="text-white px-2 py-0.5 rounded text-xs font-bold">O2</span>' +
-                '<span class="text-xs text-gray-400">Closest Match</span>' +
-                '</div>' +
-                '<p class="font-semibold">' + (closestO2.name || 'O2 Plan') + '</p>' +
-                '<p class="text-sm text-gray-500">' + o2DataStr + ' | ' + (closestO2.contract_months || '?') + ' mo</p>' +
-                '<p class="text-xl font-bold mt-2">&pound;' + o2Price.toFixed(2) + '/mo</p>' +
-                '<p class="mt-2 font-medium" style="color:' + diffColor + '">' + diffLabel + '</p>' +
-                '</div>' +
-                (closestO2.url ? '<a href="' + closestO2.url + '" target="_blank" class="block text-center mt-3 text-blue-600 hover:underline text-sm">View on O2 &rarr;</a>' : '');
-        }
-
-        function showPriceHistory(plan) {
-            var section = document.getElementById('priceHistorySection');
-            var nameSpan = document.getElementById('selectedPlanName');
-            section.style.display = 'block';
-            nameSpan.textContent = plan.name || 'Selected Plan';
-            var ctx = document.getElementById('priceHistoryChart').getContext('2d');
-            if (priceHistoryChart) priceHistoryChart.destroy();
-
-            if (typeof Chart === 'undefined') { return; }
-            fetch(API_BASE + '/api/v1/plans/' + plan.id + '/history')
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    var history = data.history || [];
-                    var labels, prices;
-                    if (history.length > 1) {
-                        labels = history.map(function(h) {
-                            var d = new Date(h.date);
-                            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-                        });
-                        prices = history.map(function(h) { return h.price; });
-                    } else {
-                        var price = plan.current_price || plan.price || 0;
-                        labels = [];
-                        prices = [];
-                        var today = new Date();
-                        for (var i = 6; i >= 0; i--) {
-                            var d = new Date(today);
-                            d.setDate(d.getDate() - i * 7);
-                            labels.push(d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }));
-                            prices.push(price);
-                        }
+                var variance='';
+                var varColor='#6B7280';
+                if(refPrice!==null){
+                    var diff=r.price-refPrice;
+                    if(isRef){
+                        variance='\u00a30.00';
+                        varColor=(isO2||isRef)?'rgba(255,255,255,0.6)':'#6B7280';
+                    }else if(diff<0){
+                        variance='-\u00a3'+Math.abs(diff).toFixed(2);
+                        varColor='#DC2626';
+                    }else if(diff>0){
+                        variance='+\u00a3'+diff.toFixed(2);
+                        varColor='#16A34A';
+                    }else{
+                        variance='\u00a30.00';
                     }
-                    priceHistoryChart = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: 'Price',
-                                data: prices,
-                                borderColor: '#0050ff',
-                                backgroundColor: 'rgba(0, 80, 255, 0.1)',
-                                fill: true,
-                                tension: 0.3
-                            }]
-                        },
-                        options: { responsive: true, plugins: { legend: { display: false } } }
-                    });
-                })
-                .catch(function(e) { console.error('History error:', e); });
-        }
+                }else{
+                    variance='-';
+                }
 
-        function updateCharts() {
-            if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
-            var networkPrices = {};
-            allPlans.forEach(function(p) {
-                var n = p.network_provider || p.provider_name || 'Other';
-                var pr = p.current_price || p.price || 0;
-                if (!networkPrices[n]) networkPrices[n] = [];
-                networkPrices[n].push(pr);
-            });
-            var nets = Object.keys(networkPrices).sort();
-            var avgs = nets.map(function(n) { return networkPrices[n].reduce(function(a, b) { return a + b; }, 0) / networkPrices[n].length; });
-            var colors = ['#0050ff', '#ed0100', '#5f2878', '#001687', '#10B981', '#F59E0B', '#0050ff', '#5f2878'];
-
-            if (priceDistChart) priceDistChart.destroy();
-            priceDistChart = new Chart(document.getElementById('priceDistChart'), {
-                type: 'bar',
-                data: { labels: nets.slice(0, 8), datasets: [{ data: avgs.slice(0, 8), backgroundColor: colors }] },
-                options: { responsive: true, plugins: { legend: { display: false } } }
+                html+='<tr style="'+rowStyle+'">';
+                html+='<td style="padding:4px 8px;'+fontW+rankColor+'">'+(i+1)+'</td>';
+                html+='<td style="padding:4px 8px;'+fontW+provColor+'">'+r.provider+'</td>';
+                html+='<td style="padding:4px 8px;'+dataColor+'">'+r.data+'</td>';
+                html+='<td style="padding:4px 8px;text-align:right;'+fontW+cellColor+'">\u00a3'+r.price.toFixed(2)+'</td>';
+                html+='<td style="padding:4px 8px;text-align:right;font-weight:600;color:'+varColor+'">'+variance+'</td>';
+                html+='</tr>';
             });
 
-            var dataCats = { '1-5 GB': [], '6-15 GB': [], '16-50 GB': [], '51-100 GB': [], '100+ GB': [], 'Unlimited': [] };
-            allPlans.forEach(function(p) {
-                var pr = p.current_price || p.price || 0;
-                var d = p.data_unlimited ? 9999 : (p.data_gb || 0);
-                if (d >= 1000) dataCats['Unlimited'].push(pr);
-                else if (d > 100) dataCats['100+ GB'].push(pr);
-                else if (d > 50) dataCats['51-100 GB'].push(pr);
-                else if (d > 15) dataCats['16-50 GB'].push(pr);
-                else if (d > 5) dataCats['6-15 GB'].push(pr);
-                else dataCats['1-5 GB'].push(pr);
-            });
-            var catLabels = Object.keys(dataCats);
-            var catAvgs = catLabels.map(function(c) {
-                return dataCats[c].length > 0 ? dataCats[c].reduce(function(a, b) { return a + b; }, 0) / dataCats[c].length : 0;
-            });
+            html+='</tbody></table></div>';
+        });
 
-            if (dataVsPriceChart) dataVsPriceChart.destroy();
-            dataVsPriceChart = new Chart(document.getElementById('dataVsPriceChart'), {
-                type: 'bar',
-                data: { labels: catLabels, datasets: [{ data: catAvgs, backgroundColor: '#5f2878' }] },
-                options: { responsive: true, plugins: { legend: { display: false } } }
-            });
-        }
+        container.innerHTML=html;
+    }
 
-        async function startScrape() {
-            try {
-                var btn = document.getElementById('scrapeBtn');
-                btn.textContent = 'Starting...';
-                btn.disabled = true;
-                var r = await fetch(API_BASE + '/api/v1/scrape/start', { method: 'POST' });
-                var d = await r.json();
-                if (d.status === 'already_running') {
-                    btn.textContent = 'In Progress...';
-                    showScrapeProgress();
-                    scrapePolling = setInterval(pollScrapeProgress, 2000);
-                    return;
-                }
-                btn.textContent = 'Scraping...';
-                showScrapeProgress();
-                scrapePolling = setInterval(pollScrapeProgress, 2000);
-            } catch (e) {
-                alert('Failed to start scrape: ' + e.message);
-                var btn2 = document.getElementById('scrapeBtn');
-                btn2.textContent = 'Run Scrape';
-                btn2.disabled = false;
-            }
-        }
-
-        function showScrapeProgress() {
-            var bar = document.getElementById('scrapeProgressBar');
-            if (bar) return;
-            var container = document.createElement('div');
-            container.id = 'scrapeProgressBar';
-            container.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1E293B;color:white;padding:16px 24px;z-index:9999;box-shadow:0 -4px 20px rgba(0,0,0,0.3);font-family:monospace;max-height:40vh;overflow-y:auto';
-            container.innerHTML =
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-                '<span style="font-weight:700;font-size:14px">Scrape In Progress</span>' +
-                '<div><span id="scrapeStats" style="font-size:12px;opacity:0.8"></span>' +
-                '<button onclick="closeScrapeBar()" style="margin-left:12px;background:#ed0100;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">Close</button>' +
-                '</div></div>' +
-                '<div style="background:#374151;border-radius:4px;height:6px;margin-bottom:8px">' +
-                '<div id="scrapeBar" style="height:100%;background:linear-gradient(90deg,#001687,#0050ff);border-radius:4px;transition:width 0.3s;width:0%"></div>' +
-                '</div>' +
-                '<div id="scrapeLogs" style="font-size:11px;line-height:1.6;max-height:20vh;overflow-y:auto;opacity:0.9"></div>';
-            document.body.appendChild(container);
-        }
-
-        async function pollScrapeProgress() {
-            try {
-                var r = await fetch(API_BASE + '/api/v1/scrape/progress');
-                var d = await r.json();
-                var pct = d.total > 0 ? Math.round((d.completed / d.total) * 100) : 0;
-                var bar = document.getElementById('scrapeBar');
-                var stats = document.getElementById('scrapeStats');
-                var logs = document.getElementById('scrapeLogs');
-                if (bar) bar.style.width = pct + '%';
-                if (stats) stats.textContent = d.completed + '/' + d.total + ' providers | ' + d.plans_found + ' plans | ' + pct + '%';
-                if (logs && d.logs) {
-                    var logLines = d.logs.slice(-30).map(function(l) {
-                        var color = '#9CA3AF';
-                        if (l.indexOf('found') >= 0 && l.indexOf('0 plans') < 0) color = '#34D399';
-                        if (l.indexOf('Error') >= 0 || l.indexOf('error') >= 0) color = '#F87171';
-                        if (l.indexOf('Scraping') >= 0) color = '#60A5FA';
-                        if (l.indexOf('complete') >= 0) color = '#FBBF24';
-                        return '<div style="color:' + color + '">' + l + '</div>';
-                    });
-                    logs.innerHTML = logLines.join('');
-                    logs.scrollTop = logs.scrollHeight;
-                }
-                if (!d.running && d.completed > 0) {
-                    clearInterval(scrapePolling);
-                    scrapePolling = null;
-                    if (bar) bar.style.width = '100%';
-                    if (stats) stats.textContent = 'Complete! ' + d.plans_found + ' plans found';
-                    var btn = document.getElementById('scrapeBtn');
-                    btn.textContent = 'Run Scrape';
-                    btn.disabled = false;
-                    setTimeout(loadData, 1000);
-                }
-            } catch (e) {
-                console.error('Poll error:', e);
-            }
-        }
-
-        function closeScrapeBar() {
-            var bar = document.getElementById('scrapeProgressBar');
-            if (bar) bar.remove();
-            if (scrapePolling) { clearInterval(scrapePolling); scrapePolling = null; }
-            var btn = document.getElementById('scrapeBtn');
-            if (btn) { btn.textContent = 'Run Scrape'; btn.disabled = false; }
-        }
-
-        function showUploadModal() {
-            if (document.getElementById('uploadModal')) return;
-            var modal = document.createElement('div');
-            modal.id = 'uploadModal';
-            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
-            modal.innerHTML =
-                '<div style="background:white;border-radius:12px;padding:32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">' +
-                '<h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#1f2937">Upload Scrape Data</h2>' +
-                '<p style="margin:0 0 20px;color:#6b7280;font-size:14px">Select the JSON file saved by the scraper app</p>' +
-                '<div id="dropZone" style="border:2px dashed #d1d5db;border-radius:8px;padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.2s" ' +
-                'onclick="document.getElementById(\'fileInput\').click()" ' +
-                'ondragover="event.preventDefault();this.style.borderColor=\'#0050ff\';this.style.background=\'#e8efff\'" ' +
-                'ondragleave="this.style.borderColor=\'#d1d5db\';this.style.background=\'white\'" ' +
-                'ondrop="handleDrop(event)">' +
-                '<div style="font-size:36px;margin-bottom:8px">&#128196;</div>' +
-                '<p style="margin:0;font-weight:600;color:#374151">Drag & drop your file here</p>' +
-                '<p style="margin:4px 0 0;color:#9ca3af;font-size:13px">or click to browse</p>' +
-                '<input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleFileSelect(this.files[0])">' +
-                '</div>' +
-                '<div id="uploadStatus" style="margin-top:16px;display:none"></div>' +
-                '<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:8px">' +
-                '<button onclick="closeUploadModal()" style="padding:8px 16px;border-radius:6px;border:1px solid #d1d5db;background:white;color:#374151;font-size:14px;cursor:pointer">Cancel</button>' +
-                '</div>' +
-                '</div>';
-            document.body.appendChild(modal);
-            modal.addEventListener('click', function(e) { if (e.target === modal) closeUploadModal(); });
-        }
-
-        function closeUploadModal() {
-            var modal = document.getElementById('uploadModal');
-            if (modal) modal.remove();
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            var dropZone = document.getElementById('dropZone');
-            dropZone.style.borderColor = '#d1d5db';
-            dropZone.style.background = 'white';
-            if (e.dataTransfer.files.length > 0) {
-                handleFileSelect(e.dataTransfer.files[0]);
-            }
-        }
-
-        function handleFileSelect(file) {
-            if (!file) return;
-            if (!file.name.endsWith('.json')) {
-                showUploadStatus('Please select a .json file', 'error');
-                return;
-            }
-
-            var dropZone = document.getElementById('dropZone');
-            dropZone.innerHTML = '<div style="color:#0050ff;font-weight:600">&#9989; ' + file.name + '</div>' +
-                '<p style="margin:4px 0 0;color:#6b7280;font-size:13px">' + (file.size / 1024).toFixed(1) + ' KB</p>';
-
-            showUploadStatus('Uploading...', 'loading');
-
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    var data = JSON.parse(e.target.result);
-                    uploadData(data);
-                } catch (err) {
-                    showUploadStatus('Invalid JSON file: ' + err.message, 'error');
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        async function uploadData(data) {
-            try {
-                var payload = {
-                    results: data.results || [],
-                    uploaded_by: 'dashboard_upload'
-                };
-                var resp = await fetch(API_BASE + '/api/v1/upload-results', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                var result = await resp.json();
-                if (result.status === 'success') {
-                    showUploadStatus('Uploaded ' + result.plans_saved + ' plans from ' + result.providers_saved + ' providers!', 'success');
-                    setTimeout(function() { closeUploadModal(); loadData(); }, 2000);
-                } else {
-                    showUploadStatus('Upload failed: ' + (result.message || 'Unknown error'), 'error');
-                }
-            } catch (err) {
-                showUploadStatus('Upload failed: ' + err.message, 'error');
-            }
-        }
-
-        function showUploadStatus(msg, type) {
-            var el = document.getElementById('uploadStatus');
-            el.style.display = 'block';
-            var color = type === 'success' ? '#10B981' : type === 'error' ? '#EF4444' : '#6b7280';
-            var bg = type === 'success' ? '#ECFDF5' : type === 'error' ? '#FEF2F2' : '#F9FAFB';
-            el.innerHTML = '<div style="padding:10px 14px;border-radius:6px;background:' + bg + ';color:' + color + ';font-size:14px;font-weight:500">' + msg + '</div>';
-        }
+    async function startScrape(){
+        try{var b=document.getElementById('scrapeBtn');b.textContent='Starting...';b.disabled=true;
+        var r=await fetch(API+'/api/v1/scrape/start',{method:'POST'});var d=await r.json();
+        b.textContent=d.status==='already_running'?'In Progress...':'Scraping...';
+        showProgress();pollId=setInterval(pollProgress,2000);
+        }catch(e){alert(e.message);document.getElementById('scrapeBtn').textContent='Run Scrape';document.getElementById('scrapeBtn').disabled=false;}
+    }
+    function showProgress(){
+        if(document.getElementById('spBar'))return;
+        var c=document.createElement('div');c.id='spBar';
+        c.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#1E293B;color:white;padding:14px 24px;z-index:9999;box-shadow:0 -4px 20px rgba(0,0,0,0.3);font-family:monospace;max-height:35vh;overflow-y:auto';
+        c.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-weight:700;font-size:12px">Scraping...</span><div><span id="spStats" style="font-size:11px;opacity:0.8"></span><button onclick="closeProgress()" style="margin-left:10px;background:#EF4444;color:white;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:10px">Close</button></div></div><div style="background:#374151;border-radius:4px;height:4px;margin-bottom:6px"><div id="spFill" style="height:100%;background:#0050ff;border-radius:4px;transition:width 0.3s;width:0%"></div></div><div id="spLogs" style="font-size:10px;line-height:1.4;max-height:18vh;overflow-y:auto;opacity:0.9"></div>';
+        document.body.appendChild(c);
+    }
+    async function pollProgress(){
+        try{var r=await fetch(API+'/api/v1/scrape/progress');var d=await r.json();
+        var pct=d.total>0?Math.round((d.completed/d.total)*100):0;
+        var bar=document.getElementById('spFill');var st=document.getElementById('spStats');var lg=document.getElementById('spLogs');
+        if(bar)bar.style.width=pct+'%';
+        if(st)st.textContent=d.completed+'/'+d.total+' providers | '+d.plans_found+' plans scraped | '+pct+'%';
+        if(lg&&d.logs){lg.innerHTML=d.logs.slice(-20).map(function(l){var c='#9CA3AF';if(l.indexOf('found')>=0&&l.indexOf('0 plans')<0)c='#34D399';if(l.indexOf('Error')>=0||l.indexOf('error')>=0)c='#F87171';if(l.indexOf('Scraping')>=0)c='#60A5FA';if(l.indexOf('complete')>=0)c='#FBBF24';return'<div style="color:'+c+'">'+l+'</div>';}).join('');lg.scrollTop=lg.scrollHeight;}
+        if(!d.running&&d.completed>0){clearInterval(pollId);pollId=null;if(bar)bar.style.width='100%';if(st)st.textContent='Done! '+d.plans_found+' scraped (duplicates merged in table)';document.getElementById('scrapeBtn').textContent='Run Scrape';document.getElementById('scrapeBtn').disabled=false;setTimeout(loadData,1000);}
+        }catch(e){console.error(e);}
+    }
+    function closeProgress(){var b=document.getElementById('spBar');if(b)b.remove();if(pollId){clearInterval(pollId);pollId=null;}document.getElementById('scrapeBtn').textContent='Run Scrape';document.getElementById('scrapeBtn').disabled=false;}
     </script>
 </body>
 </html>

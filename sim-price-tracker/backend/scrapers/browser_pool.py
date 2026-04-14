@@ -27,6 +27,56 @@ class BrowserPool:
     
     def _log(self, message: str):
         self._log_cb(f"[BrowserPool] {message}")
+
+    async def _launch_browser(self):
+        """
+        Launch browser with fallback chain:
+        1. Try system Edge (common on corporate Windows)
+        2. Try system Chrome
+        3. Fall back to Chromium (requires download)
+        """
+        launch_args = [
+            '--disable-blink-features=AutomationControlled',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+        ]
+
+        # Try Microsoft Edge first (installed on most corporate Windows)
+        try:
+            browser = await self._playwright.chromium.launch(
+                headless=self.headless,
+                channel='msedge',
+                args=launch_args,
+            )
+            self._log("Using system Edge browser")
+            return browser
+        except Exception:
+            pass
+
+        # Try Chrome next
+        try:
+            browser = await self._playwright.chromium.launch(
+                headless=self.headless,
+                channel='chrome',
+                args=launch_args,
+            )
+            self._log("Using system Chrome browser")
+            return browser
+        except Exception:
+            pass
+
+        # Fall back to Chromium (requires playwright install chromium)
+        try:
+            browser = await self._playwright.chromium.launch(
+                headless=self.headless,
+                args=launch_args,
+            )
+            self._log("Using Playwright Chromium")
+            return browser
+        except Exception as e:
+            self._log(f"No browser available: {e}. Try: playwright install chromium OR use system Chrome/Edge")
+            raise
     
     async def initialize(self):
         """Initialize the browser and context pool."""
@@ -37,14 +87,7 @@ class BrowserPool:
             self._log("Initializing browser pool")
             
             self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=self.headless,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                ]
-            )
+            self._browser = await self._launch_browser()
             
             for i in range(self.max_contexts):
                 context = await self._create_context()

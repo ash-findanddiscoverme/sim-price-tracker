@@ -9,9 +9,6 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-# Disable Playwright on cloud/low-memory environments
-PLAYWRIGHT_ENABLED = os.environ.get("PLAYWRIGHT_ENABLED", "true").lower() == "true"
-
 
 @dataclass
 class ScrapedPlan:
@@ -31,10 +28,56 @@ class ScrapedPlan:
 
 KNOWN_NETWORKS = [
     "EE", "Three", "Vodafone", "O2",
-    "giffgaff", "VOXI", "Tesco Mobile", "Asda Mobile",
+    "giffgaff", "VOXI", "Tesco Mobile", "ASDA Mobile",
     "iD Mobile", "Lyca Mobile", "Talkmobile",
-    "Sky", "BT", "Lebara", "Smarty", "1 pMobile",
+    "Sky Mobile", "BT", "Lebara", "SMARTY", "spusu Mobile",
+    "Mozillion", "Honest Mobile",
 ]
+
+NETWORK_ALIASES = {
+    "three mobile": "Three",
+    "three": "Three",
+    "3": "Three",
+    "smarty": "SMARTY",
+    "lebara mobile": "Lebara",
+    "lebara": "Lebara",
+    "asda mobile": "ASDA Mobile",
+    "asda": "ASDA Mobile",
+    "id mobile": "iD Mobile",
+    "id": "iD Mobile",
+    "i.d mobile": "iD Mobile",
+    "i.d": "iD Mobile",
+    "sky mobile": "Sky Mobile",
+    "sky": "Sky Mobile",
+    "spusu": "spusu Mobile",
+    "spusu mobile": "spusu Mobile",
+    "voxi": "VOXI",
+    "giffgaff": "giffgaff",
+    "lyca mobile": "Lyca Mobile",
+    "lyca": "Lyca Mobile",
+    "talkmobile": "Talkmobile",
+    "talk mobile": "Talkmobile",
+    "tesco mobile": "Tesco Mobile",
+    "tesco": "Tesco Mobile",
+    "ee": "EE",
+    "vodafone": "Vodafone",
+    "o2": "O2",
+    "bt": "BT",
+    "bt mobile": "BT",
+    "mozillion": "Mozillion",
+    "honest mobile": "Honest Mobile",
+    "honest": "Honest Mobile",
+}
+
+
+def normalize_network(name):
+    """Normalize network name to canonical form."""
+    if not name:
+        return name
+    canonical = NETWORK_ALIASES.get(name.lower().strip())
+    if canonical:
+        return canonical
+    return name
 
 
 def extract_contract(text):
@@ -117,13 +160,10 @@ class UnifiedScraper:
         return None
 
     async def _get_html_playwright(self, url):
-        if not PLAYWRIGHT_ENABLED:
-            self._log("Playwright disabled (set PLAYWRIGHT_ENABLED=true to enable)", "warning")
-            return None
         try:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await self._launch_browser(p)
                 page = await browser.new_page()
                 await page.set_extra_http_headers({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
                 resp = await page.goto(url, timeout=45000, wait_until="networkidle")
@@ -135,6 +175,51 @@ class UnifiedScraper:
         except Exception as e:
             self._log(f"Playwright error: {e}", "error")
         return None
+
+    async def _launch_browser(self, playwright):
+        """
+        Launch browser with fallback chain:
+        1. Try system Edge (common on corporate Windows)
+        2. Try system Chrome
+        3. Fall back to Chromium (requires download)
+        """
+        launch_args = ['--disable-blink-features=AutomationControlled', '--no-sandbox']
+
+        # Try Microsoft Edge first (installed on most corporate Windows)
+        try:
+            browser = await playwright.chromium.launch(
+                headless=True,
+                channel='msedge',
+                args=launch_args,
+            )
+            self._log("Using system Edge browser")
+            return browser
+        except Exception:
+            pass
+
+        # Try Chrome next
+        try:
+            browser = await playwright.chromium.launch(
+                headless=True,
+                channel='chrome',
+                args=launch_args,
+            )
+            self._log("Using system Chrome browser")
+            return browser
+        except Exception:
+            pass
+
+        # Fall back to Chromium (requires playwright install chromium)
+        try:
+            browser = await playwright.chromium.launch(
+                headless=True,
+                args=launch_args,
+            )
+            self._log("Using Playwright Chromium")
+            return browser
+        except Exception as e:
+            self._log(f"No browser available: {e}. Try: playwright install chromium OR use system Chrome/Edge", "error")
+            raise
 
     def _looks_like_real_page(self, html):
         if not html or len(html) < 15000:
@@ -374,7 +459,7 @@ class UnifiedScraper:
         seen = {}
         unique = []
         for p in plans:
-            key = (p.price, p.data_gb, p.data_unlimited, p.contract_months)
+            key = (p.network, p.price, p.data_gb, p.data_unlimited, p.contract_months)
             if key not in seen:
                 seen[key] = True
                 unique.append(p)
@@ -430,6 +515,12 @@ class UnifiedScraper:
                 self._log(f"No plans found on {url}", "warning")
 
         result = self._dedupe(all_plans)
+
+        # For direct provider scrapers, pin network to provider name
+        if self.provider_type in ("network", "mvno"):
+            for p in result:
+                p.network = self.provider_name
+
         self._log(f"Total: {len(result)} unique plans", "success" if result else "warning")
         return result
 

@@ -18,6 +18,9 @@ from .moneysupermarket import MoneySupermarketScraper
 from .moneysavingexpert import MoneySavingExpertScraper
 from .mobilephonesdirect import MobilePhonesDirectScraper
 from .carphonewarehouse import CarphoneWarehouseScraper
+from .mobilescouk import MobilesCoUkScraper
+from .sky_mobile import SkyMobileScraper
+from .mozillion import MozillionScraper
 
 SCRAPERS = [
     EEScraper,
@@ -31,9 +34,12 @@ SCRAPERS = [
     iDMobileScraper,
     LycaMobileScraper,
     TalkmobileScraper,
+    SkyMobileScraper,
     USwitchScraper,
     MoneySupermarketScraper,
     MoneySavingExpertScraper,
     MobilePhonesDirectScraper,
     CarphoneWarehouseScraper,
+    MobilesCoUkScraper,
+    MozillionScraper,
 ]
