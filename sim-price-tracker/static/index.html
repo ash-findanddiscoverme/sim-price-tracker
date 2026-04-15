@@ -608,6 +608,7 @@
                         type:'linear',
                         min:-0.5,
                         max:nets.length-0.5,
+                        offset:false,
                         ticks:{
                             callback:function(v){var i=Math.round(v);return(i>=0&&i<nets.length)?nets[i]:'';},
                             font:{size:9,weight:'bold'},
@@ -618,7 +619,7 @@
                             padding:2,
                             color:function(ctx){var i=Math.round(ctx.tick.value);if(i<0||i>=nets.length)return'#9CA3AF';var n=nets[i];if(n==='O2')return'#0050ff';if(isMNO(n))return'#7C3AED';return'#1F2937';}
                         },
-                        grid:{display:true,drawOnChartArea:true,color:'rgba(0,0,0,0.04)',lineWidth:1}
+                        grid:{display:true,drawOnChartArea:true,color:'rgba(0,0,0,0.12)',lineWidth:1,offset:false,drawTicks:true,tickLength:6}
                     }
                 },
                 onClick:function(evt,elements){
