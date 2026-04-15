@@ -244,7 +244,10 @@ class UnifiedScraper:
                 network_name = extract_network(all_text)
 
             if has_price and 5 <= price <= 100 and (data_gb or is_unlimited):
-                plan_name = name or f"{self.provider_name} {data_gb or 'Unlimited'}GB"
+                # For affiliate sites, use network name in plan name; never use the affiliate name
+                label_source = network_name if (self.provider_type == "affiliate" and network_name) else self.provider_name
+                data_label = "Unlimited" if is_unlimited else f"{data_gb}GB"
+                plan_name = name or f"{label_source} {data_label}"
                 plans.append(ScrapedPlan(
                     name=plan_name, price=price, data_gb=data_gb,
                     data_unlimited=is_unlimited, is_5g=is_5g, url=url,
@@ -300,8 +303,9 @@ class UnifiedScraper:
             is_5g = extract_5g(text)
             contract_months = extract_contract(text)
             network = extract_network(text)
+            label_source = network if (self.provider_type == "affiliate" and network) else self.provider_name
             data_label = "Unlimited" if is_unlimited else f"{data_gb}GB"
-            name = f"{self.provider_name} {data_label}"
+            name = f"{label_source} {data_label}"
 
             plans.append(ScrapedPlan(
                 name=name, price=price, data_gb=data_gb,
@@ -340,8 +344,9 @@ class UnifiedScraper:
             contract = extract_contract(window)
             network = extract_network(window)
 
+            label_source = network if (self.provider_type == "affiliate" and network) else self.provider_name
             plans.append(ScrapedPlan(
-                name=f"{self.provider_name} {data_gb}GB",
+                name=f"{label_source} {data_gb}GB",
                 price=price, data_gb=data_gb, url=url,
                 is_5g=is_5g, contract_months=contract, network=network,
             ))
@@ -355,12 +360,14 @@ class UnifiedScraper:
             if 5 <= price <= 100 and (999, price) not in seen:
                 seen.add((999, price))
                 window = text[max(0, m.start() - 200):min(len(text), m.end() + 200)]
+                net = extract_network(window)
+                label_source = net if (self.provider_type == "affiliate" and net) else self.provider_name
                 plans.append(ScrapedPlan(
-                    name=f"{self.provider_name} Unlimited",
+                    name=f"{label_source} Unlimited",
                     price=price, data_unlimited=True, url=url,
                     is_5g=extract_5g(window),
                     contract_months=extract_contract(window),
-                    network=extract_network(window),
+                    network=net,
                 ))
         return plans
 

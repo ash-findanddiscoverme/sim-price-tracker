@@ -261,7 +261,11 @@ async def save_plans(slug: str, name: str, ptype: str, plans):
             )
             existing = result.scalar()
 
-            network = plan_data.network or name
+            # For affiliate/comparison sites, never attribute plans to the affiliate name
+            if ptype == "affiliate":
+                network = plan_data.network  # None if we couldn't identify the network
+            else:
+                network = plan_data.network or name
             if existing:
                 existing.name = plan_data.name
                 existing.url = plan_data.url or existing.url
