@@ -403,8 +403,12 @@
                 .catch(function(e) { console.error('History error:', e); });
         }
 
+        var MNO_NETWORKS = ['EE', 'Three', 'Vodafone', 'O2'];
+
         function updateCharts() {
             if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
+
+            /* ── Price Distribution by Network (scatter strip plot) ── */
             var networkPrices = {};
             allPlans.forEach(function(p) {
                 var n = p.network_provider || p.provider_name || 'Other';
@@ -412,17 +416,153 @@
                 if (!networkPrices[n]) networkPrices[n] = [];
                 networkPrices[n].push(pr);
             });
-            var nets = Object.keys(networkPrices).sort();
-            var avgs = nets.map(function(n) { return networkPrices[n].reduce(function(a, b) { return a + b; }, 0) / networkPrices[n].length; });
-            var colors = ['#002F6C', '#E6007A', '#10B981', '#F59E0B', '#6366F1', '#EC4689', '#14B8A6', '#8B5CF6'];
+
+            // Sort networks by their average price
+            var nets = Object.keys(networkPrices).sort(function(a, b) {
+                var avgA = networkPrices[a].reduce(function(s, v) { return s + v; }, 0) / networkPrices[a].length;
+                var avgB = networkPrices[b].reduce(function(s, v) { return s + v; }, 0) / networkPrices[b].length;
+                return avgA - avgB;
+            });
+
+            // Compute per-network averages
+            var netAvgs = {};
+            nets.forEach(function(n) {
+                netAvgs[n] = networkPrices[n].reduce(function(s, v) { return s + v; }, 0) / networkPrices[n].length;
+            });
+
+            // Build scatter datasets: below-avg (green) and above-avg (red)
+            var belowPts = [];
+            var abovePts = [];
+            nets.forEach(function(n, idx) {
+                var avg = netAvgs[n];
+                networkPrices[n].forEach(function(price) {
+                    // Small random jitter so overlapping dots spread out
+                    var jitter = (Math.random() - 0.5) * 0.4;
+                    var pt = { x: idx + jitter, y: price };
+                    if (price <= avg) {
+                        belowPts.push(pt);
+                    } else {
+                        abovePts.push(pt);
+                    }
+                });
+            });
+
+            // Trend line (average per network)
+            var trendPts = nets.map(function(n, idx) {
+                return { x: idx, y: netAvgs[n] };
+            });
 
             if (priceDistChart) priceDistChart.destroy();
             priceDistChart = new Chart(document.getElementById('priceDistChart'), {
-                type: 'bar',
-                data: { labels: nets.slice(0, 8), datasets: [{ data: avgs.slice(0, 8), backgroundColor: colors }] },
-                options: { responsive: true, plugins: { legend: { display: false } } }
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Below avg',
+                            data: belowPts,
+                            backgroundColor: 'rgba(16, 185, 129, 0.5)',
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            order: 2
+                        },
+                        {
+                            label: 'Above avg',
+                            data: abovePts,
+                            backgroundColor: 'rgba(239, 68, 68, 0.5)',
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            order: 2
+                        },
+                        {
+                            label: 'Network avg',
+                            data: trendPts,
+                            type: 'line',
+                            borderColor: '#3B82F6',
+                            borderWidth: 2,
+                            borderDash: [6, 4],
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.3,
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            min: -0.5,
+                            max: nets.length - 0.5,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    var idx = Math.round(value);
+                                    return (idx >= 0 && idx < nets.length) ? nets[idx] : '';
+                                },
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: function(context) {
+                                    var idx = Math.round(context.tick.value);
+                                    var n = (idx >= 0 && idx < nets.length) ? nets[idx] : '';
+                                    var isMNO = MNO_NETWORKS.indexOf(n) >= 0;
+                                    return { weight: isMNO ? 'bold' : 'normal', size: 11 };
+                                },
+                                color: function(context) {
+                                    var idx = Math.round(context.tick.value);
+                                    var n = (idx >= 0 && idx < nets.length) ? nets[idx] : '';
+                                    if (n === 'O2') return '#002F6C';
+                                    if (MNO_NETWORKS.indexOf(n) >= 0) return '#EF4444';
+                                    return '#6B7280';
+                                }
+                            },
+                            grid: { display: false }
+                        },
+                        y: {
+                            title: { display: true, text: '£/mo' },
+                            ticks: {
+                                callback: function(v) { return '£' + v; }
+                            },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 16,
+                                generateLabels: function(chart) {
+                                    return [
+                                        { text: 'Below avg', fillStyle: 'rgba(16, 185, 129, 0.5)', strokeStyle: 'transparent', pointStyle: 'circle' },
+                                        { text: 'Above avg', fillStyle: 'rgba(239, 68, 68, 0.5)', strokeStyle: 'transparent', pointStyle: 'circle' },
+                                        { text: 'Network avg', fillStyle: 'transparent', strokeStyle: '#3B82F6', lineWidth: 2, lineDash: [6, 4], pointStyle: 'line' },
+                                        { text: '', fillStyle: 'transparent', strokeStyle: 'transparent', pointStyle: false },
+                                        { text: 'O2', fillStyle: 'transparent', fontColor: '#002F6C', strokeStyle: 'transparent', pointStyle: false },
+                                        { text: 'MNO', fillStyle: 'transparent', fontColor: '#EF4444', strokeStyle: 'transparent', pointStyle: false },
+                                        { text: 'MVNO', fillStyle: 'transparent', fontColor: '#6B7280', strokeStyle: 'transparent', pointStyle: false }
+                                    ];
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(items) {
+                                    if (!items.length) return '';
+                                    var idx = Math.round(items[0].parsed.x);
+                                    return (idx >= 0 && idx < nets.length) ? nets[idx] : '';
+                                },
+                                label: function(item) {
+                                    return '£' + item.parsed.y.toFixed(2) + '/mo';
+                                }
+                            }
+                        }
+                    }
+                }
             });
 
+            /* ── Average Price by Data Amount ── */
             var dataCats = { '1-5 GB': [], '6-15 GB': [], '16-50 GB': [], '51-100 GB': [], '100+ GB': [], 'Unlimited': [] };
             allPlans.forEach(function(p) {
                 var pr = p.current_price || p.price || 0;

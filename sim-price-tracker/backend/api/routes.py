@@ -184,6 +184,7 @@ async def run_scrape():
         run_id = scrape_run.id
 
     semaphore = asyncio.Semaphore(3)
+    PROVIDER_TIMEOUT = 120  # seconds per provider
 
     async def scrape_one(scraper_cls):
         async with semaphore:
@@ -197,25 +198,35 @@ async def run_scrape():
             scraper.set_log_callback(lambda msg, lvl="info": log_message(f"  {msg}"))
 
             try:
-                plans = await scraper.scrape()
+                plans = await asyncio.wait_for(scraper.scrape(), timeout=PROVIDER_TIMEOUT)
                 plan_count = len(plans) if plans else 0
                 log_message(f"{name}: found {plan_count} plans")
 
                 if plans:
-                    await save_plans(slug, name, ptype, plans)
+                    await asyncio.wait_for(
+                        save_plans(slug, name, ptype, plans),
+                        timeout=30,
+                    )
                     scrape_state["plans_found"] += plan_count
                 else:
                     scrape_state["errors"].append(f"{name}: 0 plans found")
 
-                scrape_state["completed"] += 1
                 return plan_count
+
+            except asyncio.TimeoutError:
+                err = f"{name}: timed out after {PROVIDER_TIMEOUT}s"
+                log_message(err, "error")
+                scrape_state["errors"].append(err)
+                return 0
 
             except Exception as e:
                 err = f"{name}: {str(e)[:200]}"
                 log_message(err, "error")
                 scrape_state["errors"].append(err)
-                scrape_state["completed"] += 1
                 return 0
+
+            finally:
+                scrape_state["completed"] += 1
 
     tasks = [scrape_one(cls) for cls in SCRAPERS]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -241,6 +252,8 @@ async def run_scrape():
 
 async def save_plans(slug: str, name: str, ptype: str, plans):
     """Save scraped plans to the database."""
+    from scrapers.unified_base import normalize_network
+
     async with async_session() as db:
         result = await db.execute(select(Provider).where(Provider.slug == slug))
         provider = result.scalar()
@@ -263,9 +276,9 @@ async def save_plans(slug: str, name: str, ptype: str, plans):
 
             # For affiliate/comparison sites, never attribute plans to the affiliate name
             if ptype == "affiliate":
-                network = plan_data.network  # None if we couldn't identify the network
+                network = normalize_network(plan_data.network) if plan_data.network else None
             else:
-                network = plan_data.network or name
+                network = normalize_network(plan_data.network or name)
             if existing:
                 existing.name = plan_data.name
                 existing.url = plan_data.url or existing.url

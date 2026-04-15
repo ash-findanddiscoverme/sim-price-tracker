@@ -13,11 +13,14 @@ from .asda_mobile import AsdaMobileScraper
 from .id_mobile import iDMobileScraper
 from .lyca_mobile import LycaMobileScraper
 from .talkmobile import TalkmobileScraper
+from .sky_mobile import SkyMobileScraper
 from .uswitch import USwitchScraper
 from .moneysupermarket import MoneySupermarketScraper
 from .moneysavingexpert import MoneySavingExpertScraper
 from .mobilephonesdirect import MobilePhonesDirectScraper
 from .carphonewarehouse import CarphoneWarehouseScraper
+from .mobilescouk import MobilesCoUkScraper
+from .mozillion import MozillionScraper
 
 SCRAPERS = [
     EEScraper,
@@ -31,9 +34,12 @@ SCRAPERS = [
     iDMobileScraper,
     LycaMobileScraper,
     TalkmobileScraper,
+    SkyMobileScraper,
     USwitchScraper,
     MoneySupermarketScraper,
     MoneySavingExpertScraper,
     MobilePhonesDirectScraper,
     CarphoneWarehouseScraper,
+    MobilesCoUkScraper,
+    MozillionScraper,
 ]
