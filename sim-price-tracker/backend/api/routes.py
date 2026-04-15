@@ -44,7 +44,7 @@ async def get_plans(
     min_confidence: Optional[float] = None,
     max_price: Optional[float] = None,
 ):
-    """Get all plans with latest prices."""
+    """Get plans with smart dedup: cheapest direct + all affiliate variants, merged sources."""
     async with async_session() as db:
         query = (
             select(Plan)
@@ -59,7 +59,7 @@ async def get_plans(
         result = await db.execute(query)
         plans = result.scalars().all()
 
-        plan_data = []
+        raw_plans = []
         for p in plans:
             price_query = (
                 select(PriceSnapshot)
@@ -74,11 +74,14 @@ async def get_plans(
             if max_price and price > max_price:
                 continue
 
-            plan_data.append({
+            provider_type = p.provider.provider_type if p.provider else "network"
+            raw_plans.append({
                 "id": p.id,
                 "name": p.name or "Unknown",
                 "provider_name": p.provider.name if p.provider else "Unknown",
+                "provider_type": provider_type,
                 "network_provider": p.network_provider or (p.provider.name if p.provider else "Unknown"),
+                "source_type": "Affiliate" if provider_type == "affiliate" else "Direct",
                 "current_price": price,
                 "price": price,
                 "data_gb": p.data_gb,
@@ -89,7 +92,67 @@ async def get_plans(
                 "needs_verification": p.needs_verification or False,
             })
 
-        return {"plans": plan_data, "total": len(plan_data)}
+        merged = _merge_plans(raw_plans)
+        return {"plans": merged, "total": len(merged)}
+
+
+def _merge_plans(raw_plans):
+    """
+    Smart dedup logic:
+    1. Group by (network, data_gb/unlimited, contract_months)
+    2. For direct sources: keep only the cheapest price
+    3. For affiliate sources: keep each unique (source, price) combo
+    4. If same deal (same network, data, contract, price) from multiple sources: merge sources
+    """
+    from collections import defaultdict
+
+    groups = defaultdict(list)
+    for p in raw_plans:
+        net = p["network_provider"]
+        gb = p["data_gb"] if not p["data_unlimited"] else "unlimited"
+        ctr = p["contract_months"]
+        key = (net, gb, ctr)
+        groups[key].append(p)
+
+    merged = []
+    for key, plans_in_group in groups.items():
+        direct = [p for p in plans_in_group if p["source_type"] == "Direct"]
+        affiliate = [p for p in plans_in_group if p["source_type"] == "Affiliate"]
+
+        # Direct: keep only cheapest
+        if direct:
+            direct.sort(key=lambda x: x["price"])
+            best_direct = direct[0]
+            # Merge sources if multiple direct at same price
+            same_price_direct = [d for d in direct if d["price"] == best_direct["price"]]
+            sources = list(set(d["provider_name"] for d in same_price_direct))
+            urls = list(set(d["url"] for d in same_price_direct if d["url"]))
+            best_direct["sources"] = [{"name": s, "type": "Direct"} for s in sources]
+            best_direct["source_urls"] = urls
+            merged.append(best_direct)
+
+        # Affiliate: keep each unique (source, price) but merge same-price entries
+        aff_by_price = defaultdict(list)
+        for a in affiliate:
+            aff_by_price[a["price"]].append(a)
+
+        for price, aff_group in aff_by_price.items():
+            representative = aff_group[0]
+            sources = list(set(a["provider_name"] for a in aff_group))
+            urls = list(set(a["url"] for a in aff_group if a["url"]))
+            representative["sources"] = [{"name": s, "type": "Affiliate"} for s in sources]
+            representative["source_urls"] = urls
+            # If same price as direct best, add affiliate sources to direct entry
+            if direct and direct[0]["price"] == price:
+                existing = next((m for m in merged if m["id"] == direct[0]["id"]), None)
+                if existing:
+                    existing["sources"].extend(representative["sources"])
+                    existing["source_urls"].extend(urls)
+                    continue
+            merged.append(representative)
+
+    merged.sort(key=lambda x: x["price"])
+    return merged
 
 
 @router.get("/plans/{plan_id}/history")
@@ -274,11 +337,7 @@ async def save_plans(slug: str, name: str, ptype: str, plans):
             )
             existing = result.scalar()
 
-            # For affiliate/comparison sites, never attribute plans to the affiliate name
-            if ptype == "affiliate":
-                network = normalize_network(plan_data.network) if plan_data.network else None
-            else:
-                network = normalize_network(plan_data.network or name)
+            network = normalize_network(plan_data.network or name)
             if existing:
                 existing.name = plan_data.name
                 existing.url = plan_data.url or existing.url

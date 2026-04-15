@@ -51,10 +51,22 @@ async def serve_index():
         return FileResponse(index_path, media_type="text/html")
     return {"message": "SIM Price Tracker API", "version": "2.0", "docs": "/docs"}
 
-
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "time": datetime.utcnow().isoformat()}
+
+if os.path.isdir(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static_files")
+
+@app.get("/{filename:path}")
+async def serve_static_fallback(filename: str):
+    """Serve static files from the root path (images, etc.)."""
+    if filename.startswith("api/"):
+        return {"detail": "Not found"}
+    file_path = os.path.join(static_dir, filename)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    return {"detail": "Not found"}
 
 
 if __name__ == "__main__":

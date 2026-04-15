@@ -1,9 +1,10 @@
-"""O2 scraper with anti-bot evasion and tariff card parsing."""
+"""O2 scraper - uses DFE cookie to access the new React site,
+then iterates contract length filters via React-compatible select changes."""
 
 import re
 import logging
 from bs4 import BeautifulSoup
-from .unified_base import UnifiedScraper, ScrapedPlan, extract_contract, extract_network
+from .unified_base import UnifiedScraper, ScrapedPlan
 
 logger = logging.getLogger(__name__)
 
@@ -16,133 +17,159 @@ class O2Scraper(UnifiedScraper):
     use_playwright = True
 
     async def _get_html_playwright(self, url):
+        return None
+
+    async def scrape(self):
+        plans = []
         try:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:
                 browser = await self._launch_browser(p)
                 ctx = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                    viewport={"width": 1920, "height": 1080},
-                    locale="en-GB",
+                    user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    viewport={'width': 1920, 'height': 1080}, locale='en-GB',
                 )
+
+                # Set DFE cookies to access the new React-based O2 site
+                await ctx.add_cookies([
+                    {'name': 'optimizely_vmo2_upper', 'value': 'dfe', 'domain': '.o2.co.uk', 'path': '/'},
+                    {'name': 'optimizely_vmo2checkout', 'value': 'esales', 'domain': '.o2.co.uk', 'path': '/'},
+                ])
+
                 page = await ctx.new_page()
-                await page.add_init_script(
-                    "Object.defineProperty(navigator, 'webdriver', {get: () => false})"
-                )
-                await page.goto(url, timeout=30000, wait_until="domcontentloaded")
-                await page.wait_for_timeout(6000)
+                await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => false})")
+                await page.goto(self.urls[0], timeout=30000, wait_until='domcontentloaded')
+                await page.wait_for_timeout(10000)
 
-                # Scroll to load all tariff cards
-                for _ in range(5):
-                    await page.evaluate("window.scrollBy(0, 800)")
-                    await page.wait_for_timeout(1000)
+                # Dismiss cookies
+                try:
+                    btn = page.locator('#onetrust-accept-btn-handler').first
+                    if await btn.is_visible(timeout=2000):
+                        await btn.click()
+                        await page.wait_for_timeout(1000)
+                except Exception:
+                    pass
+                await page.evaluate("document.querySelectorAll('#onetrust-consent-sdk').forEach(el=>el.remove())")
 
-                # Click any "show more" or tab buttons
-                for selector in [
-                    'button:has-text("Show more")',
-                    'button:has-text("Load more")',
-                    '[class*="show-more"]',
-                    '[class*="load-more"]',
-                ]:
-                    try:
-                        btn = page.locator(selector).first
-                        if await btn.is_visible(timeout=1000):
-                            await btn.click()
-                            await page.wait_for_timeout(2000)
-                            self._log(f"Clicked '{selector}'")
-                    except Exception:
-                        pass
+                # Iterate each contract length
+                contract_options = [('24', 24), ('12', 12), ('1', 1)]
 
-                # Click through data filter tabs to reveal all plans
-                for tab_text in ['All', 'SIM only']:
-                    try:
-                        tab = page.locator(f'button:has-text("{tab_text}")').first
-                        if await tab.is_visible(timeout=1000):
-                            await tab.click()
-                            await page.wait_for_timeout(2000)
-                    except Exception:
-                        pass
+                for contract_val, contract_months in contract_options:
+                    self._log(f"Selecting contract: {contract_months}mo")
 
-                html = await page.content()
+                    # Use React-compatible select change
+                    await page.evaluate("""(val) => {
+                        const sel = document.querySelector('select[name="contract-length"]');
+                        if (sel) {
+                            const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+                            setter.call(sel, val);
+                            sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }""", contract_val)
+                    await page.wait_for_timeout(4000)
+
+                    # Also sort by price to get structured listing
+                    await page.evaluate("""() => {
+                        const sel = document.querySelector('select[name="sortby"]');
+                        if (sel) {
+                            const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+                            setter.call(sel, '+monthlyPrice');
+                            sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }""")
+                    await page.wait_for_timeout(3000)
+
+                    # Click "Show next" to load all plans for this contract
+                    for _ in range(10):
+                        await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                        await page.wait_for_timeout(800)
+                        try:
+                            sn = page.locator('text=/Show next/i').first
+                            if await sn.is_visible(timeout=500):
+                                text = await sn.text_content()
+                                if '0 result' in text:
+                                    break
+                                await sn.click(force=True)
+                                self._log(f"  Show next: {text.strip()}")
+                                await page.wait_for_timeout(3000)
+                            else:
+                                break
+                        except Exception:
+                            break
+
+                    # Parse plans from current page state
+                    html = await page.content()
+                    new_plans = self._parse_plans(html, contract_months)
+                    self._log(f"  Found {len(new_plans)} plans for {contract_months}mo")
+                    plans.extend(new_plans)
+
                 await browser.close()
-                self._log(f"Playwright (stealth) got {len(html)} chars from {url}")
-                return html if len(html) > 5000 else None
         except Exception as e:
-            self._log(f"Playwright error: {e}", "error")
-        return None
+            self._log(f'Scrape error: {e}', 'error')
 
-    def _extract_from_html(self, html, url):
+        result = self._dedupe(plans)
+        for plan in result:
+            plan.network = 'O2'
+        self._log(f'Total: {len(result)} unique plans', 'success' if result else 'warning')
+        return result
+
+    def _parse_plans(self, html, default_contract):
         plans = []
         soup = BeautifulSoup(html, 'html.parser')
+        seen = set()
 
-        tariff_cards = soup.select('.tariff-card, [class*="tariff-card"]')
-        self._log(f"Found {len(tariff_cards)} tariff-card elements")
-
-        for card in tariff_cards:
+        for card in soup.select('[class*="plan"], [class*="card"], [class*="tariff"]'):
             text = card.get_text(' ', strip=True)
-            if len(text) < 20:
+            if len(text) < 50 or len(text) > 500 or 'MONTHLY' not in text:
                 continue
 
-            price = None
-            pm = re.search(r'£\s?(\d+(?:\.\d+)?)\s*(?:monthly|/mo|per month|a month)', text, re.IGNORECASE)
+            pm = re.search(r'£(\d+\.\d+)\s+MONTHLY', text)
             if not pm:
-                pm = re.search(r'£\s?(\d+(?:\.\d+)?)', text)
-            if pm:
-                price = float(pm.group(1))
-
-            if not price or price < 5 or price > 100:
+                continue
+            price = float(pm.group(1))
+            if price < 5 or price > 80:
                 continue
 
-            data_gb = None
-            dm = re.search(r'(\d+)\s*GB', text, re.IGNORECASE)
-            if dm:
-                data_gb = int(dm.group(1))
-                if data_gb > 500:
-                    data_gb = None
-            is_unlimited = not data_gb and 'unlimited' in text.lower()
+            dm = re.search(r'(\d+)\s*GB', text, re.I)
+            data_gb = int(dm.group(1)) if dm else None
+            is_unlimited = 'unlimited' in text[:80].lower() and not data_gb
             if not data_gb and not is_unlimited:
                 continue
 
-            contract_months = 1
-            cm = re.search(r'(\d+)\s*month\s*contract', text, re.IGNORECASE)
+            contract = default_contract
+            cm = re.search(r'(\d+)\s+month\s+contract', text, re.I)
             if cm:
-                val = int(cm.group(1))
-                if 1 <= val <= 36:
-                    contract_months = val
+                contract = int(cm.group(1))
 
-            is_5g = '5g' in text.lower()
-            data_label = 'Unlimited' if is_unlimited else f'{data_gb}GB'
-
-            # Extract plan tier (Mini Plan, Classic Plan, etc.)
             tier = ''
-            tier_match = re.search(r'(MINI|CLASSIC|ALL ROUNDER|UNLIMITED)\s*PLAN', text, re.IGNORECASE)
-            if tier_match:
-                tier = ' ' + tier_match.group(1).title()
+            tm = re.search(r'(MINI|CLASSIC|ALL ROUNDER)\s*PLAN', text, re.I)
+            if tm:
+                tier = tm.group(1).title()
 
-            name = f'O2{tier} {data_label}'
+            data_label = 'Unlimited' if is_unlimited else f'{data_gb}GB'
+            key = (price, data_gb, is_unlimited, contract, tier)
+            if key in seen:
+                continue
+            seen.add(key)
 
             extras = []
             if 'priority' in text.lower():
                 extras.append('Priority')
             if 'eu roaming' in text.lower() or 'roam' in text.lower():
                 extras.append('EU Roaming')
+            if 'switch up' in text.lower():
+                extras.append('O2 Switch Up')
 
             plans.append(ScrapedPlan(
-                name=name,
+                name=f'O2 {tier} {data_label}'.strip(),
                 price=price,
                 data_gb=data_gb,
                 data_unlimited=is_unlimited,
-                is_5g=is_5g,
-                url=url,
-                contract_months=contract_months,
+                is_5g=True,
+                url=self.urls[0],
+                contract_months=contract,
                 network='O2',
                 extras=', '.join(extras) if extras else None,
             ))
-
-        if not plans:
-            self._log("Tariff cards yielded nothing, falling back to regex", "warning")
-            plans = self._extract_from_regex(html, url)
-            for p in plans:
-                p.network = 'O2'
 
         return plans
