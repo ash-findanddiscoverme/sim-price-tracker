@@ -337,7 +337,13 @@ async def save_plans(slug: str, name: str, ptype: str, plans):
             )
             existing = result.scalar()
 
-            network = normalize_network(plan_data.network or name)
+            # For affiliates, never fall back to the affiliate site name as network
+            if ptype == "affiliate":
+                if not plan_data.network:
+                    continue  # skip plans with no network attribution from affiliates
+                network = normalize_network(plan_data.network)
+            else:
+                network = normalize_network(plan_data.network or name)
             if existing:
                 existing.name = plan_data.name
                 existing.url = plan_data.url or existing.url
