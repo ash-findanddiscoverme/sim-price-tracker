@@ -52,6 +52,7 @@
                 <span id="planCount" style="font-size:13px;background:rgba(255,255,255,0.15);padding:4px 12px;border-radius:20px"></span>
                 <button onclick="loadData()" style="background:rgba(255,255,255,0.15);color:white;font-size:12px;padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);display:flex;align-items:center;gap:6px;transition:all 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#8635; Refresh</button>
                 <button id="scrapeBtn" onclick="startScrape()" style="background:#E6007A;color:white;font-size:12px;font-weight:600;padding:8px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(230,0,122,0.3);transition:all 0.2s" onmouseover="this.style.background='#C70068'" onmouseout="this.style.background='#E6007A'">&#9654; Run Scrape</button>
+                <button onclick="clearData()" style="background:rgba(255,255,255,0.15);color:white;font-size:12px;padding:8px 16px;border-radius:8px;border:1px solid rgba(239,68,68,0.5);display:flex;align-items:center;gap:6px;transition:all 0.2s" onmouseover="this.style.background='rgba(239,68,68,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128465; Clear Data</button>
             </div>
         </div>
     </header>
@@ -870,6 +871,16 @@
         });
 
         container.innerHTML=html;
+    }
+
+    async function clearData(){
+        if(!confirm('Clear all scraped plans and price history? This cannot be undone.'))return;
+        try{
+            var r=await fetch(API+'/api/v1/data/clear',{method:'POST'});
+            var d=await r.json();
+            alert(d.message||'Data cleared');
+            loadData();
+        }catch(e){alert('Failed to clear data: '+e.message);}
     }
 
     async function startScrape(){

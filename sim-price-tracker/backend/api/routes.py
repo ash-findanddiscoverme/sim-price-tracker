@@ -209,6 +209,18 @@ async def get_scrape_progress():
     }
 
 
+@router.post("/data/clear")
+async def clear_data():
+    """Delete all plans, price snapshots, providers, and scrape runs."""
+    async with async_session() as db:
+        await db.execute(PriceSnapshot.__table__.delete())
+        await db.execute(Plan.__table__.delete())
+        await db.execute(Provider.__table__.delete())
+        await db.execute(ScrapeRun.__table__.delete())
+        await db.commit()
+    return {"message": "All data cleared successfully"}
+
+
 @router.post("/scrape/start")
 async def start_scrape(background_tasks: BackgroundTasks):
     """Start a new scrape run."""
