@@ -67,35 +67,30 @@ class MozillionScraper(UnifiedScraper):
         return result
 
     def _parse_plans(self, html, url):
-        """
-        Mozillion plan cards follow this pattern:
-          "[N]GB data" or "Unlimited data"
-          "[N]-Month" or "[N]-Months"
-          "Unlimited calls & txts"
-          "EU roaming"
-          "£X.XX p/m"
-        """
         plans = []
         soup = BeautifulSoup(html, 'html.parser')
         seen = set()
 
-        # Try card-based selectors first
+        # Mozillion plan cards use Tailwind drop-shadow classes and contain
+        # "p/m" pricing with data amounts. Filter elements that have pricing
+        # and data info to find actual plan cards.
         cards = []
-        for sel in ['[class*="product"]', '[class*="card"]', '[class*="plan"]', '[class*="item"]']:
-            found = soup.select(sel)
-            priced = [c for c in found if 'p/m' in c.get_text() and ('GB data' in c.get_text() or 'Unlimited data' in c.get_text()) and 'Month' in c.get_text()]
-            if priced:
-                cards = priced
-                self._log(f"Found {len(cards)} plan cards with '{sel}'")
-                break
+        for el in soup.select('[class*="drop-shadow"], [class*="rounded"]'):
+            text = el.get_text(' ', strip=True)
+            # Must contain price and data info to be a plan card
+            if '£' in text and 'p/m' in text and ('GB' in text or 'Unlimited' in text.lower()):
+                # Skip huge containers (the whole page section)
+                if len(text) < 500:
+                    cards.append(el)
+
+        if cards:
+            self._log(f"Found {len(cards)} plan cards")
+        else:
+            self._log("No plan cards found via drop-shadow/rounded selector")
 
         for card in cards:
             raw = card.get_text(' ', strip=True)
-            # Collapse all whitespace to single spaces for reliable regex
             text = re.sub(r'\s+', ' ', raw).strip()
-            if len(text) < 15 or len(text) > 400:
-                continue
-
             plan = self._parse_card_text(text, url)
             if plan:
                 key = (plan.price, plan.data_gb, plan.data_unlimited, plan.contract_months)
@@ -105,10 +100,10 @@ class MozillionScraper(UnifiedScraper):
 
         # Fallback: regex on full page text
         if not plans:
-            self._log("No cards found, using text patterns")
+            self._log("Card parsing yielded nothing, using text patterns", "warning")
             page_text = re.sub(r'\s+', ' ', soup.get_text(' '))
             for m in re.finditer(
-                r'((?:\d+GB|Unlimited)\s+data)\s+([\d]+-Months?)\s+.*?£(\d+(?:\.\d+)?)\s*p/m',
+                r'((?:\d+\s*GB|Unlimited)\s+data)\s+([\d]+-Months?)\s+.*?£(\d+(?:\.\d+)?)\s*p/m',
                 page_text, re.I
             ):
                 data_str = m.group(1)
@@ -124,7 +119,7 @@ class MozillionScraper(UnifiedScraper):
 
                 if not data_gb and not is_unlimited:
                     continue
-                if price < 3 or price > 30:
+                if price < 3 or price > 60:
                     continue
 
                 key = (price, data_gb, is_unlimited, contract)
@@ -146,9 +141,9 @@ class MozillionScraper(UnifiedScraper):
 
     def _parse_card_text(self, text, url):
         # Data
-        dm = re.search(r'(\d+)\s*GB\s+data', text, re.I)
+        dm = re.search(r'(\d+)\s*GB\s*data', text, re.I)
         data_gb = int(dm.group(1)) if dm else None
-        is_unlimited = 'unlimited data' in text.lower() and not data_gb
+        is_unlimited = bool(re.search(r'unlimited\s+data', text, re.I)) and not data_gb
 
         if not data_gb and not is_unlimited:
             return None
@@ -158,7 +153,7 @@ class MozillionScraper(UnifiedScraper):
         if not pm:
             return None
         price = float(pm.group(1))
-        if price < 3 or price > 30:
+        if price < 3 or price > 60:
             return None
 
         # Contract: "N-Month" or "N-Months"
@@ -172,8 +167,10 @@ class MozillionScraper(UnifiedScraper):
         extras = []
         if 'EU roaming' in text:
             extras.append('EU Roaming')
-        if 'No credit check' in text.lower() or 'no credit' in text.lower():
+        if 'no credit' in text.lower():
             extras.append('No credit check')
+        if 'no price' in text.lower():
+            extras.append('No price rises')
 
         return ScrapedPlan(
             name=f'Mozillion {data_label}',

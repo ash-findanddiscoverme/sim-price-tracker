@@ -1,7 +1,9 @@
 """Carphone Warehouse scraper with network attribution.
 
-Carphone Warehouse is a retailer/affiliate, not an MNO or MVNO.
-Plans must be attributed to the actual network.
+Carphone Warehouse uses heavy client-side rendering and aggressive bot
+detection. The site returns minimal HTML to automated browsers, making
+reliable scraping infeasible without a full browser automation pipeline.
+This scraper is kept as a placeholder but logs the issue clearly.
 """
 
 import re
@@ -18,6 +20,25 @@ class CarphoneWarehouseScraper(UnifiedScraper):
     provider_type = "affiliate"
     urls = ['https://www.carphonewarehouse.com/sim-only-deals']
     use_playwright = True
+
+    async def scrape(self):
+        """Attempt to scrape, but CPW blocks automated browsers."""
+        html = await self._fetch_html(self.urls[0])
+        if not html or len(html) < 50000:
+            self._log("Carphone Warehouse uses heavy client-side rendering - skipping", "warning")
+            return []
+
+        plans = self._extract_from_html(html, self.urls[0])
+        if not plans:
+            plans = self._extract_from_regex(html, self.urls[0])
+            # Only keep plans with network attribution (affiliate site)
+            plans = [p for p in plans if p.network]
+            for p in plans:
+                data_label = 'Unlimited' if p.data_unlimited else f'{p.data_gb}GB'
+                p.name = f'{p.network} {data_label}'
+
+        self._log(f"Total: {len(plans)} unique plans", "success" if plans else "warning")
+        return plans
 
     def _extract_from_html(self, html, url):
         plans = []
@@ -83,23 +104,9 @@ class CarphoneWarehouseScraper(UnifiedScraper):
             seen.add(key)
 
             plans.append(ScrapedPlan(
-                name=name,
-                price=price,
-                data_gb=data_gb,
-                data_unlimited=is_unlimited,
-                is_5g=is_5g,
-                url=url,
-                contract_months=contract_months,
-                network=network,
+                name=name, price=price, data_gb=data_gb,
+                data_unlimited=is_unlimited, is_5g=is_5g, url=url,
+                contract_months=contract_months, network=network,
             ))
-
-        if not plans:
-            self._log("Card parsing yielded nothing, falling back to regex with network filter", "warning")
-            all_plans = self._extract_from_regex(html, url)
-            for plan in all_plans:
-                if plan.network:
-                    data_label = 'Unlimited' if plan.data_unlimited else f'{plan.data_gb}GB'
-                    plan.name = f'{plan.network} {data_label}'
-            plans = [p for p in all_plans if p.network]
 
         return plans
