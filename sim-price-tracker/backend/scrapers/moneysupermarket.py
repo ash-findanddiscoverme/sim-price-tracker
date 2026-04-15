@@ -24,10 +24,7 @@ class MoneySupermarketScraper(UnifiedScraper):
         try:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:
-                browser = await p.chromium.launch(
-                    headless=True,
-                    args=['--disable-blink-features=AutomationControlled'],
-                )
+                browser = await self._launch_browser(p)
                 ctx = await browser.new_context(
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     viewport={"width": 1920, "height": 1080},

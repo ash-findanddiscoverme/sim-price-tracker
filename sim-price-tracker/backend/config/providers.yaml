@@ -154,6 +154,6 @@ moneysavingexpert:
   name: "MoneySavingExpert"
   type: affiliate
   urls:
-    - https://www.moneysavingexpert.com/cheap-mobile-phones/
-  rendering: httpx
+    - https://www.moneysavingexpert.com/cheap-mobile-finder/sim-only/
+  rendering: playwright
   rate_limit: 2

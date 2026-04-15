@@ -16,7 +16,7 @@ class MoneySavingExpertScraper(UnifiedScraper):
     provider_name = "MoneySavingExpert"
     provider_slug = "moneysavingexpert"
     provider_type = "affiliate"
-    urls = ['https://www.moneysavingexpert.com/cheap-mobile-phones/']
+    urls = ['https://www.moneysavingexpert.com/cheap-mobile-finder/sim-only/']
 
     def _extract_from_html(self, html, url):
         plans = []
